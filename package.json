@@ -2,16 +2,36 @@
   "name": "grupo_4_carona",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
+    "api:start": "node --import tsx/esm apps/api/src/server.ts",
     "db:generate": "prisma generate",
     "db:push": "node src/database/pushSchema.js",
     "db:seed": "node src/database/importCsvs.js",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "workflow1:calibrate": "node --import tsx/esm apps/api/src/scripts/run-policy-calibration.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:unit": "node --import tsx/esm --test apps/api/src/lib/*.test.ts apps/api/src/services/**/*.test.ts apps/api/src/agents/*.test.ts",
+    "test:integration": "node --import tsx/esm --test apps/api/src/**/*.integration.test.ts",
+    "validate:workflow1": "npm run typecheck && npm run test:unit && npm run test:integration"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.3"
+    "@langchain/core": "^0.3.23",
+    "@langchain/langgraph": "^0.2.39",
+    "@langchain/openai": "^0.4.2",
+    "@prisma/client": "^6.19.3",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.1.0",
+    "openai": "^4.77.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
-    "prisma": "^6.19.3"
+    "@types/node": "^22.10.2",
+    "prisma": "^6.19.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   }
 }
