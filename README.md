@@ -164,7 +164,9 @@ cd hackathon-ufmg-2026-grupo<N>
 
 ### 3. Submeta
 
-Envie a URL do seu repositório público para o formulário de entrega até **18/04 às 04:00**.
+Envie a URL do seu repositório público para o formulário de entrega presente no site [hackathon.getenter.ai](https://hackathon.getenter.ai) até **18/04 às 04:00**.
+
+
 
 A URL deve seguir o formato:
 ```
