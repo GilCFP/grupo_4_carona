@@ -16,8 +16,8 @@ Liste aqui as dependências necessárias para rodar a solução:
 Crie um arquivo `.env` na raiz do projeto com as variáveis necessárias:
 
 ```env
-# Exemplo — adapte conforme sua solução
 OPENAI_API_KEY=sua_chave_aqui
+DATABASE_URL="file:../data/hackaton.sqlite"
 ```
 
 > **Nunca commite o arquivo `.env` com credenciais reais.**  
@@ -26,14 +26,46 @@ OPENAI_API_KEY=sua_chave_aqui
 ## Instalação
 
 ```bash
-# Descreva aqui os passos de instalação
+npm install
+npm run db:generate
+npm run db:push
 ```
 
 ## Execução
 
 ```bash
-# Descreva aqui como rodar a solução
+npm run db:seed
 ```
+
+## Preparação do SQLite
+
+Para consolidar os dois CSVs do hackathon em um banco SQLite local com Prisma:
+
+```bash
+npm run db:generate
+npm run db:push
+npm run db:seed
+```
+
+Os principais artefatos ficam em:
+- `prisma/schema.prisma`
+- `src/database/importCsvs.js`
+
+O processo cria o arquivo `data/hackaton.sqlite` com:
+- `processes`
+- `process_subsidies`
+- `process_outcomes`
+- `process_case_features`
+- `vw_case_outcome_summary`
+- `vw_subsidy_patterns`
+
+Se quiser inspecionar visualmente o banco:
+
+```bash
+npm run db:studio
+```
+
+Observação: `npm run db:push` recria o arquivo SQLite local a partir do `prisma/schema.prisma`.
 
 ## Dados
 

@@ -5,6 +5,8 @@
 
 # Dados sensíveis — não versionar
 data/*.csv
+data/*.db
+data/*.sqlite
 data/subsidios/
 data/processos_exemplo/
 

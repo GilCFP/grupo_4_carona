@@ -1,0 +1,17 @@
+{
+  "name": "grupo_4_carona",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "node src/database/pushSchema.js",
+    "db:seed": "node src/database/importCsvs.js",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3"
+  }
+}
