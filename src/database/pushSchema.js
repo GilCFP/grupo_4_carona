@@ -2,11 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "../..");
 const prismaDir = path.join(rootDir, "prisma");
+
+dotenv.config({ path: path.join(rootDir, ".env") });
 
 function resolveDatabasePath(databaseUrl) {
   if (!databaseUrl.startsWith("file:")) {
@@ -23,6 +26,10 @@ function run(command, args, options = {}) {
     encoding: "utf8",
     ...options
   });
+
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
 
   if (result.status !== 0) {
     throw new Error(result.stderr || result.stdout || `${command} failed`);
@@ -48,7 +55,11 @@ function main() {
     "--script"
   ]).stdout;
 
-  run("sqlite3", [databasePath], { input: sql });
+  run(
+    "npx",
+    ["prisma", "db", "execute", "--stdin", "--schema", "prisma/schema.prisma"],
+    { input: sql }
+  );
 
   console.log(`Prisma schema applied to: ${databasePath}`);
 }

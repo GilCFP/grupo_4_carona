@@ -5,12 +5,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
-import { getCaseResult } from "@/services/api";
+import { getCaseResult, submitCaseFeedback } from "@/services/api";
 import type { CaseResult, LawyerDecision } from "@/types/case";
 
 type TopicDecisions = Record<
@@ -45,58 +45,124 @@ function complexityTone(complexidade: CaseResult["complexidade"]) {
   return "success";
 }
 
+function buildVerdictProbabilityText(result: CaseResult) {
+  const probability = Math.round(result.verdict.probability * 100);
+
+  if (result.verdict.similarCases > 0) {
+    return `Risco estimado de perda do banco em ${probability}%, com base em ${result.verdict.similarCases} casos similares analisados pelo backend.`;
+  }
+
+  return `Risco estimado de perda do banco em ${probability}%, conforme a avaliação consolidada do backend para este processo.`;
+}
+
+function buildVerdictTitle(result: CaseResult) {
+  if (result.verdict.recommendation === "Acordo") {
+    return "Recomendação: Acordo";
+  }
+
+  if (result.verdict.recommendation === "Revisão") {
+    return "Recomendação: Revisão";
+  }
+
+  return "Recomendação: Defesa";
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    if (error.message === "404" || error.message === "Caso não encontrado") {
+      return "Caso não encontrado.";
+    }
+
+    if (
+      error.message === "Tempo limite excedido para processamento do caso"
+    ) {
+      return "O caso ainda não concluiu o processamento dentro do tempo esperado.";
+    }
+
+    return error.message;
+  }
+
+  return "Não foi possível carregar o resultado do caso.";
+}
+
+function buildFeedbackText(
+  result: CaseResult,
+  topicDecisions: TopicDecisions,
+) {
+  const lines = result.topics.map((topic) => {
+    const state = topicDecisions[topic.id];
+    const status =
+      state?.decision === "approved" ? "APROVADO" : "REPROVADO";
+    const note =
+      state?.decision === "disagreed" && state.note.trim()
+        ? ` Justificativa: ${state.note.trim()}`
+        : "";
+
+    return `[${status}] ${topic.title}.${note}`;
+  });
+
+  return lines.join("\n");
+}
+
 export function ResultadoPage() {
   // Resultado page purpose: exibir o parecer do Agente IA, permitir aprovação ou divergência por tópico e consolidar o parecer jurídico.
-  const { caseId = "case-2418A" } = useParams();
+  const { caseId } = useParams();
+  const navigate = useNavigate();
 
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<CaseResult | null>(null);
   const [topicDecisions, setTopicDecisions] = useState<TopicDecisions>({});
-  const [processing, setProcessing] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
 
   useEffect(() => {
-    let mounted = true;
-    let apiReady = false;
-    let timerReady = false;
+    if (!caseId) {
+      setErrorMessage("Caso não encontrado.");
+      setIsLoading(false);
+      return;
+    }
 
-    setProcessing(true);
-    setProgress(0);
+    let isActive = true;
+
+    setIsLoading(true);
+    setErrorMessage("");
+    setFeedbackMessage("");
+    setResult(null);
+    setTopicDecisions({});
+    setProgress(8);
 
     const timerId = window.setInterval(() => {
       setProgress((current) => {
-        const next = Math.min(100, current + 4);
-        if (next >= 100) {
-          window.clearInterval(timerId);
-          timerReady = true;
-          if (apiReady && mounted) {
-            setProcessing(false);
-          }
+        if (current >= 94) {
+          return current;
         }
-        return next;
+
+        const next = current + Math.max(4, Math.round((100 - current) * 0.12));
+        return Math.min(next, 94);
       });
-    }, 120);
+    }, 2000);
 
     void getCaseResult(caseId)
       .then((response) => {
-        if (!mounted) {
+        if (!isActive) {
           return;
         }
 
         setResult(response);
-        apiReady = true;
-
-        if (timerReady) {
-          setProcessing(false);
-        }
+        setProgress(100);
+        setIsLoading(false);
       })
-      .catch(() => {
-        if (mounted) {
-          setProcessing(false);
+      .catch((error) => {
+        if (isActive) {
+          setErrorMessage(getErrorMessage(error));
+          setIsLoading(false);
         }
       });
 
     return () => {
-      mounted = false;
+      isActive = false;
       window.clearInterval(timerId);
     };
   }, [caseId]);
@@ -112,8 +178,41 @@ export function ResultadoPage() {
     });
   }, [result, topicDecisions]);
 
-  if (processing || !result) {
-    const estimatedSeconds = Math.max(0, Math.ceil(((100 - progress) / 100) * 3));
+  async function handleConfirmFeedback() {
+    if (!result || !allTopicsDecided) {
+      return;
+    }
+
+    setIsSubmittingFeedback(true);
+    setErrorMessage("");
+    setFeedbackMessage("");
+
+    try {
+      const approvalStatus = result.topics.every(
+        (topic) => topicDecisions[topic.id]?.decision === "approved",
+      )
+        ? "approved"
+        : "rejected";
+
+      await submitCaseFeedback(result.caseId, {
+        analysisId: result.analysisId,
+        approvalStatus,
+        feedbackText: buildFeedbackText(result, topicDecisions),
+      });
+
+      setFeedbackMessage("Parecer salvo com sucesso.");
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  }
+
+  if (isLoading) {
+    const estimatedSeconds = Math.max(
+      2,
+      Math.ceil(((100 - Math.min(progress, 94)) / 100) * 60),
+    );
 
     return (
       <div className="flex min-h-[70vh] items-center justify-center">
@@ -146,6 +245,27 @@ export function ResultadoPage() {
             <Spinner className="text-brand-navy" />
             Validando tópicos operacionais e precedentes internos
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!result) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <div className="page-card w-full max-w-2xl p-8 text-center">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-red-600">
+            <Cpu className="h-10 w-10" />
+          </div>
+          <h1 className="mt-6 text-3xl font-bold text-[#1a1a2e]">
+            Não foi possível carregar a análise
+          </h1>
+          <p className="mt-3 text-sm leading-7 text-slate-600">
+            {errorMessage || "Ocorreu um erro ao consultar o backend."}
+          </p>
+          <Button className="mt-6" onClick={() => navigate(-1)} variant="secondary">
+            Voltar
+          </Button>
         </div>
       </div>
     );
@@ -235,7 +355,7 @@ export function ResultadoPage() {
                       className={[
                         "min-h-11 rounded-[8px] border px-4 text-sm font-medium transition",
                         state.decision === "disagreed"
-                          ? "border-red-200 bg-red-50 text-red-600"
+                          ? "border-red-600 bg-red-600 text-white"
                           : "border-border-soft bg-white text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-600",
                       ].join(" ")}
                       onClick={() =>
@@ -284,12 +404,22 @@ export function ResultadoPage() {
           <Button
             className="mt-6"
             disabled={!allTopicsDecided}
+            isLoading={isSubmittingFeedback}
+            onClick={handleConfirmFeedback}
             size="lg"
             variant="primary"
           >
             <CheckCircle2 className="h-4 w-4" />
             Confirmar Parecer
           </Button>
+
+          {feedbackMessage ? (
+            <p className="mt-3 text-sm text-emerald-700">{feedbackMessage}</p>
+          ) : null}
+
+          {!isLoading && errorMessage && result ? (
+            <p className="mt-3 text-sm text-red-600">{errorMessage}</p>
+          ) : null}
         </div>
       </section>
 
@@ -303,14 +433,21 @@ export function ResultadoPage() {
           </div>
 
           <h2 className="mt-5 text-3xl font-bold tracking-tight text-[#1a1a2e]">
-            Recomendação: {result.verdict.recommendation}
+            {buildVerdictTitle(result)}
           </h2>
           <p className="mt-4 text-sm leading-7 text-slate-700">
-            Probabilidade de êxito da parte autora de{" "}
-            <strong>{Math.round(result.verdict.probability * 100)}%</strong>,
-            baseada em {result.verdict.similarCases} casos similares
-            avaliados pela base histórica.
+            {result.verdict.explanationShort}
           </p>
+
+          <p className="mt-4 text-sm leading-7 text-slate-700">
+            {buildVerdictProbabilityText(result)}
+          </p>
+
+          {result.verdict.detailedExplanation ? (
+            <p className="mt-4 text-sm leading-7 text-slate-700">
+              {result.verdict.detailedExplanation}
+            </p>
+          ) : null}
 
           {result.verdict.recommendation === "Acordo" &&
           result.verdict.tetoSugerido ? (

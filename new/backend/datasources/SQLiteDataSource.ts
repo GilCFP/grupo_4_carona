@@ -1,6 +1,7 @@
 import {
   addCaseDocuments,
   createCase,
+  createCaseFeedback,
   createLawyerAction,
   getCaseById,
   getCaseDocuments
@@ -8,6 +9,7 @@ import {
 import {
   getDashboardAdherence,
   getDashboardEffectiveness,
+  getFeedbackSavingsSummary,
   getDashboardSummary
 } from "../db/repositories/dashboard-repository.js";
 import {
@@ -19,6 +21,7 @@ import { runCaseDecision } from "../graphs/case-decision-graph.js";
 import { runPolicyCalibration } from "../graphs/policy-calibration-graph.js";
 import type {
   AddCaseDocumentInput,
+  CreateCaseFeedbackInput,
   CreateCaseInput,
   SQLiteRepository
 } from "../repositories/SQLiteRepository.js";
@@ -66,6 +69,14 @@ export class SQLiteDataSource implements SQLiteRepository {
 
   async registerLawyerAction(caseId: string, input: Parameters<typeof createLawyerAction>[1]) {
     return createLawyerAction(caseId, input);
+  }
+
+  async createCaseFeedback(caseId: string, input: CreateCaseFeedbackInput) {
+    return createCaseFeedback(caseId, input);
+  }
+
+  async getFeedbackSavingsSummary() {
+    return getFeedbackSavingsSummary();
   }
 
   async getDashboardSummary() {

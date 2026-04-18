@@ -17,6 +17,7 @@ import {
 
 import { prisma } from "../client.js";
 import { parseJson, safeStringify } from "../../lib/json.js";
+import type { CreateCaseFeedbackInput } from "../../repositories/SQLiteRepository.js";
 
 type CreateCaseInput = {
   externalCaseNumber?: string;
@@ -424,4 +425,82 @@ export async function createLawyerAction(
       status: "actioned"
     }
   });
+}
+
+export async function createCaseFeedback(
+  caseId: string,
+  input: CreateCaseFeedbackInput
+): Promise<{
+  id: string;
+  caseId: string;
+  analysisId: string;
+  externalCaseNumber: string | null;
+  aiRecommendation: string;
+  approvalStatus: string;
+  feedbackText: string;
+  estimatedCauseValueBrl: number | null;
+  createdAt: string;
+}> {
+  const caseRecord = await prisma.case.findUnique({
+    where: {
+      id: caseId
+    },
+    include: {
+      analyses: {
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: 1
+      }
+    }
+  });
+
+  if (!caseRecord) {
+    throw new Error("Caso nao encontrado.");
+  }
+
+  const resolvedAnalysisId = input.analysisId ?? caseRecord.analyses[0]?.id;
+
+  if (!resolvedAnalysisId) {
+    throw new Error("Analise do caso nao encontrada.");
+  }
+
+  const analysis = await prisma.caseAnalysis.findUnique({
+    where: {
+      id: resolvedAnalysisId
+    }
+  });
+
+  if (!analysis || analysis.caseId !== caseId) {
+    throw new Error("Analise do caso nao encontrada.");
+  }
+
+  const aiRecommendation = analysis.recommendedAction ?? "review";
+  const estimatedCauseValueBrl =
+    input.approvalStatus === "approved" && typeof caseRecord.claimAmountCents === "number"
+      ? caseRecord.claimAmountCents / 100
+      : null;
+
+  const feedback = await prisma.caseFeedback.create({
+    data: {
+      caseId,
+      analysisId: resolvedAnalysisId,
+      feedbackText: input.feedbackText,
+      approvalStatus: input.approvalStatus,
+      aiRecommendation,
+      estimatedCauseValueBrl
+    }
+  });
+
+  return {
+    id: feedback.id,
+    caseId: feedback.caseId,
+    analysisId: feedback.analysisId,
+    externalCaseNumber: caseRecord.externalCaseNumber,
+    aiRecommendation: feedback.aiRecommendation,
+    approvalStatus: feedback.approvalStatus,
+    feedbackText: feedback.feedbackText,
+    estimatedCauseValueBrl: feedback.estimatedCauseValueBrl,
+    createdAt: feedback.createdAt.toISOString()
+  };
 }

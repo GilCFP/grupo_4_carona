@@ -22,6 +22,15 @@ export function registerBackendApis(app: FastifyInstance, prefix = "/api") {
   );
 
   app.register(
+    async (feedbackScope) => {
+      backendApis.caseFeedbackApi.register(feedbackScope);
+    },
+    {
+      prefix: `${prefix}/case-feedback`
+    }
+  );
+
+  app.register(
     async (dashboardScope) => {
       backendApis.dashboardApi.register(dashboardScope);
     },

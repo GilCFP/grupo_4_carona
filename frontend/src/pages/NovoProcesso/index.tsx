@@ -18,10 +18,8 @@ import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
-import { submitCase } from "@/services/api";
-import type { CaseCategory, PriorityLevel } from "@/types/case";
+import { submitCase, waitForCaseAnalysis } from "@/services/api";
 
 interface UploadQueueItem {
   id: string;
@@ -29,16 +27,6 @@ interface UploadQueueItem {
   progress: number;
   status: "processing" | "completed";
 }
-
-const categories: Array<{ label: string; value: "" | CaseCategory }> = [
-  { label: "Selecione uma categoria", value: "" },
-  { label: "Cível", value: "Cível" },
-  { label: "Trabalhista", value: "Trabalhista" },
-  { label: "Criminal", value: "Criminal" },
-  { label: "Tributário", value: "Tributário" },
-];
-
-const priorities: PriorityLevel[] = ["Baixa", "Média", "Alta"];
 
 function generateProtocolId() {
   const year = new Date().getFullYear();
@@ -80,6 +68,42 @@ function formatBytes(size: number) {
   return `${Math.max(1, Math.round(size / 1024))} KB`;
 }
 
+function formatCurrencyInput(value: string) {
+  const digits = value.replace(/\D/g, "");
+
+  if (!digits) {
+    return "";
+  }
+
+  const amount = Number(digits) / 100;
+
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(amount);
+}
+
+function parseCurrencyToCents(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits ? Number(digits) : 0;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    if (error.message === "404") {
+      return "Não foi possível enviar o caso. O endpoint não foi encontrado.";
+    }
+
+    if (error.message === "500") {
+      return "O backend retornou um erro interno ao processar a solicitação.";
+    }
+
+    return error.message;
+  }
+
+  return "Não foi possível enviar o caso para análise.";
+}
+
 export function NovoProcessoPage() {
   // Novo Processo page purpose: capturar documentos PDF, simular triagem inicial e enviar o caso para análise automatizada.
   const navigate = useNavigate();
@@ -90,11 +114,11 @@ export function NovoProcessoPage() {
   const [protocolId] = useState(generateProtocolId);
   const [processNumber, setProcessNumber] = useState("");
   const [clientName, setClientName] = useState("");
-  const [category, setCategory] = useState<"" | CaseCategory>("");
-  const [priority, setPriority] = useState<PriorityLevel>("Média");
+  const [claimAmount, setClaimAmount] = useState("");
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState("");
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -107,7 +131,11 @@ export function NovoProcessoPage() {
     };
   }, []);
 
-  const canSubmit = queue.length > 0 && processNumber.trim().length > 0;
+  const claimAmountCents = parseCurrencyToCents(claimAmount);
+  const canSubmit =
+    queue.length > 0 &&
+    processNumber.trim().length > 0 &&
+    claimAmountCents > 0;
 
   const queueCountLabel = useMemo(() => queue.length, [queue.length]);
 
@@ -216,24 +244,27 @@ export function NovoProcessoPage() {
     }
 
     setIsSubmitting(true);
+    setSubmissionError("");
 
     try {
       const response = await submitCase({
         processNumber,
         clientName,
-        category: category || "Cível",
-        priority,
+        claimAmountCents,
         files: queue.map((item) => item.file),
       });
 
+      await waitForCaseAnalysis(response.caseId);
       navigate(`/resultado/${response.caseId}`);
+    } catch (error) {
+      setSubmissionError(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.55fr_0.95fr]">
+    <div className="space-y-6">
       <section className="space-y-6">
         <div className="page-card p-6 lg:p-8">
           <Badge tone="info" className="border-transparent bg-mist text-brand-navy">
@@ -249,6 +280,46 @@ export function NovoProcessoPage() {
             Envio e Triagem de documentos para análise automatizada pelo Agente
             IA.
           </p>
+
+          <div className="mt-8 grid gap-4 lg:grid-cols-3">
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-slate-700">
+                Número do Processo
+              </span>
+              <Input
+                onChange={(event) =>
+                  setProcessNumber(formatProcessNumber(event.target.value))
+                }
+                placeholder="0000000-00.0000.0.00.0000"
+                value={processNumber}
+              />
+            </label>
+
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-slate-700">
+                Nome do Cliente
+              </span>
+              <Input
+                onChange={(event) => setClientName(event.target.value)}
+                placeholder="Nome completo da parte autora"
+                value={clientName}
+              />
+            </label>
+
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-slate-700">
+                Valor do Processo
+              </span>
+              <Input
+                inputMode="numeric"
+                onChange={(event) =>
+                  setClaimAmount(formatCurrencyInput(event.target.value))
+                }
+                placeholder="R$ 0,00"
+                value={claimAmount}
+              />
+            </label>
+          </div>
         </div>
 
         <div className="page-card p-6">
@@ -376,96 +447,33 @@ export function NovoProcessoPage() {
               </div>
             </div>
           ) : null}
+
+          <Button
+            className="mt-8"
+            disabled={!canSubmit}
+            fullWidth
+            isLoading={isSubmitting}
+            onClick={handleSubmit}
+            size="lg"
+          >
+            <Bot className="h-4 w-4" />
+            {isSubmitting
+              ? "Aguardando análise do backend..."
+              : "Enviar para Análise do Agente IA"}
+          </Button>
+
+          {submissionError ? (
+            <p className="mt-3 rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {submissionError}
+            </p>
+          ) : null}
+
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            O caso só será aberto na tela de resultado após o backend concluir a
+            análise inicial e atualizar o status.
+          </p>
         </div>
       </section>
-
-      <aside className="page-card h-fit p-6">
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
-          METADADOS DA TRIAGEM
-        </p>
-
-        <div className="mt-6 space-y-5">
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-slate-700">
-              Número do Processo
-            </span>
-            <Input
-              onChange={(event) =>
-                setProcessNumber(formatProcessNumber(event.target.value))
-              }
-              placeholder="0000000-00.0000.0.00.0000"
-              value={processNumber}
-            />
-          </label>
-
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-slate-700">
-              Nome do Cliente
-            </span>
-            <Input
-              onChange={(event) => setClientName(event.target.value)}
-              placeholder="Nome completo da parte autora"
-              value={clientName}
-            />
-          </label>
-
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-slate-700">
-              Categoria
-            </span>
-            <Select
-              onChange={(event) =>
-                setCategory(event.target.value as "" | CaseCategory)
-              }
-              options={categories}
-              value={category}
-            />
-          </label>
-
-          <div className="space-y-2">
-            <span className="text-sm font-medium text-slate-700">
-              Prioridade
-            </span>
-            <div className="grid grid-cols-3 gap-2">
-              {priorities.map((item) => {
-                const active = item === priority;
-
-                return (
-                  <button
-                    key={item}
-                    className={[
-                      "min-h-11 rounded-[8px] border text-sm font-medium transition",
-                      active
-                        ? "border-brand-navy bg-brand-navy text-white"
-                        : "border-border-soft bg-white text-slate-700 hover:border-brand-navy/30 hover:bg-mist",
-                    ].join(" ")}
-                    onClick={() => setPriority(item)}
-                    type="button"
-                  >
-                    {item}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <Button
-          className="mt-8"
-          disabled={!canSubmit}
-          fullWidth
-          isLoading={isSubmitting}
-          onClick={handleSubmit}
-          size="lg"
-        >
-          <Bot className="h-4 w-4" />
-          Enviar para Análise do Agente IA
-        </Button>
-
-        <p className="mt-3 text-sm leading-6 text-slate-500">
-          Os documentos serão processados e adicionados à fila de análise.
-        </p>
-      </aside>
     </div>
   );
 }

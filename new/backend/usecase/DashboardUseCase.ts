@@ -4,16 +4,18 @@ export class DashboardUseCase {
   constructor(private readonly sqliteRepository: SQLiteRepository) {}
 
   async getAnalytics() {
-    const [summary, adherence, effectiveness] = await Promise.all([
+    const [summary, adherence, effectiveness, feedbackSavings] = await Promise.all([
       this.sqliteRepository.getDashboardSummary(),
       this.sqliteRepository.getDashboardAdherence(),
-      this.sqliteRepository.getDashboardEffectiveness()
+      this.sqliteRepository.getDashboardEffectiveness(),
+      this.sqliteRepository.getFeedbackSavingsSummary()
     ]);
 
     return {
       summary,
       adherence,
-      effectiveness
+      effectiveness,
+      feedbackSavings
     };
   }
 }

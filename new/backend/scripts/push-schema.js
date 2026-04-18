@@ -25,7 +25,9 @@ function run(command, args, options = {}) {
   });
 
   if (result.status !== 0) {
-    throw new Error(result.stderr || result.stdout || `${command} failed`);
+    throw new Error(
+      result.error?.message || result.stderr || result.stdout || `${command} failed`
+    );
   }
 
   return result;
@@ -48,7 +50,17 @@ function main() {
     "--script"
   ]).stdout;
 
-  run("sqlite3", [databasePath], { input: sql });
+  run(
+    "npx",
+    ["prisma", "db", "execute", "--stdin", "--schema", "prisma/schema.prisma"],
+    {
+      env: {
+        ...process.env,
+        DATABASE_URL: databaseUrl
+      },
+      input: sql
+    }
+  );
 
   console.log(`Prisma schema applied to: ${databasePath}`);
 }

@@ -159,7 +159,71 @@ Resposta:
 {
   "summary": {},
   "adherence": {},
-  "effectiveness": {}
+  "effectiveness": {},
+  "feedbackSavings": {}
+}
+```
+
+## Feedback do advogado
+
+### `POST /api/case-feedback/:caseId`
+
+Uso:
+- salvar o feedback do advogado sobre a resposta da IA
+- registrar se o output foi aprovado ou reprovado
+- guardar a recomendacao da IA no momento do feedback
+- salvar o custo/valor estimado da causa apenas quando o output foi aprovado
+
+Body:
+```json
+{
+  "analysisId": "analysis_123",
+  "feedbackText": "Parecer aprovado pelo advogado.",
+  "approvalStatus": "approved"
+}
+```
+
+Resposta:
+```json
+{
+  "id": "feedback_123",
+  "caseId": "case_123",
+  "analysisId": "analysis_123",
+  "externalCaseNumber": "CASE-001",
+  "aiRecommendation": "agreement",
+  "approvalStatus": "approved",
+  "feedbackText": "Parecer aprovado pelo advogado.",
+  "estimatedCauseValueBrl": 15000,
+  "createdAt": "2026-04-17T12:00:00.000Z"
+}
+```
+
+### `GET /api/case-feedback/savings`
+
+Uso:
+- obter o total de custos salvos e a lista de feedbacks
+- alimentar cards ou tabelas do dashboard
+
+Resposta:
+```json
+{
+  "totalFeedbacks": 10,
+  "approvedFeedbacks": 7,
+  "rejectedFeedbacks": 3,
+  "totalSavedCostBrl": 84000,
+  "items": [
+    {
+      "id": "feedback_123",
+      "caseId": "case_123",
+      "analysisId": "analysis_123",
+      "externalCaseNumber": "CASE-001",
+      "aiRecommendation": "agreement",
+      "approvalStatus": "approved",
+      "feedbackText": "Parecer aprovado pelo advogado.",
+      "estimatedCauseValueBrl": 15000,
+      "createdAt": "2026-04-17T12:00:00.000Z"
+    }
+  ]
 }
 ```
 
@@ -209,6 +273,8 @@ Rotas mais importantes para o front:
 - `POST /api/case-analyzer/submit`
 - `GET /api/case-analyzer/result?caseId=...`
 - `GET /api/dashboard/analytics`
+- `POST /api/case-feedback/:caseId`
+- `GET /api/case-feedback/savings`
 - `GET /api/status?caseId=...`
 - `GET /api/traces/:workflowType/:executionId`
 - `GET /api/traces/:workflowType/:executionId/view`

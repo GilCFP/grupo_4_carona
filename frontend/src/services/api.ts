@@ -1,4 +1,6 @@
+import { API_BASE_URL } from "@/config/env";
 import type {
+  AiTopic,
   CaseCategory,
   CaseMetadata,
   CaseResult,
@@ -6,243 +8,314 @@ import type {
   VerdictRecommendation,
 } from "@/types/case";
 
-interface MockCaseSeed {
-  caseId: string;
-  processNumber: string;
-  clientName: string;
-  vara: string;
-  dataFato: string;
-  complexidade: "Baixa" | "Média" | "Alta";
-  advogado: {
-    name: string;
-    initials: string;
-  };
-  verdict: {
-    recommendation: VerdictRecommendation;
-    probability: number;
-    similarCases: number;
-    tetoSugerido?: number;
-  };
-  topics: Array<{
-    id: string;
-    title: string;
-    description: string;
-  }>;
-  generatedAt: string;
-  status: "processing" | "completed" | "reviewed";
-}
-
 export interface SubmitCasePayload {
   processNumber: string;
   clientName?: string;
   category?: CaseCategory;
   priority?: PriorityLevel;
+  claimAmountCents: number;
   files: File[];
 }
 
-const delay = (ms: number) =>
-  new Promise<void>((resolve) => {
+interface BackendStatusResponse {
+  caseId?: string;
+  status?: string;
+}
+
+interface BackendSubmitResponse {
+  caseId?: string;
+}
+
+interface BackendCaseRecord {
+  externalCaseNumber?: string;
+  plaintiffName?: string;
+  uf?: string;
+  courtDistrict?: string;
+  createdAt?: string;
+}
+
+interface BackendDecision {
+  action?: string;
+  confidence?: number;
+  offerMin?: number;
+  offerTarget?: number;
+  offerMax?: number;
+  expectedJudicialCost?: number;
+  expectedCondemnation?: number;
+  lossProbability?: number;
+  explanationShort?: string;
+}
+
+interface BackendRisk {
+  lossProbability?: number;
+  riskBand?: string;
+}
+
+interface BackendSimilarCases {
+  sampleSize?: number;
+}
+
+interface BackendAnalysis {
+  similarCases?: BackendSimilarCases | null;
+  risk?: BackendRisk | null;
+  explanationShort?: string | null;
+  explanationText?: string | null;
+  offerMaxCents?: number | null;
+}
+
+interface BackendCaseResultResponse {
+  caseId: string;
+  analysisId?: string;
+  caseRecord?: BackendCaseRecord;
+  analysis?: BackendAnalysis;
+  decision?: BackendDecision;
+  lawyerExplanation?: string;
+}
+
+export interface SubmitCaseFeedbackPayload {
+  analysisId?: string;
+  feedbackText: string;
+  approvalStatus: "approved" | "rejected";
+}
+
+class ApiError extends Error {
+  status: number;
+
+  constructor(status: number) {
+    super(`${status}`);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+function buildUrl(pathname: string, params?: Record<string, string>) {
+  const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
+
+  if (API_BASE_URL === "/" || API_BASE_URL === "") {
+    const searchParams = new URLSearchParams(params);
+    return searchParams.toString()
+      ? `${normalizedPath}?${searchParams.toString()}`
+      : normalizedPath;
+  }
+
+  const baseUrl = API_BASE_URL.endsWith("/")
+    ? API_BASE_URL
+    : `${API_BASE_URL}/`;
+  const url = new URL(normalizedPath.slice(1), baseUrl);
+
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.set(key, value);
+    });
+  }
+
+  return url.toString();
+}
+
+async function readResponseJson<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    throw new ApiError(response.status);
+  }
+
+  return (await response.json()) as T;
+}
+
+async function requestJson<T>(
+  pathname: string,
+  init?: RequestInit,
+  params?: Record<string, string>,
+): Promise<T> {
+  const response = await fetch(buildUrl(pathname, params), init);
+  return readResponseJson<T>(response);
+}
+
+async function getCaseStatus(caseId: string): Promise<BackendStatusResponse> {
+  return requestJson<BackendStatusResponse>("/api/status", undefined, { caseId });
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
     window.setTimeout(resolve, ms);
   });
-
-const mockCases: MockCaseSeed[] = [
-  {
-    caseId: "case-2418A",
-    processNumber: "0801234-56.2024.8.10.0001",
-    clientName: "Maria de Lourdes Silva",
-    vara: "12ª Vara Cível de Belo Horizonte",
-    dataFato: "2025-01-12",
-    complexidade: "Média",
-    advogado: {
-      name: "Fernanda Costa",
-      initials: "FC",
-    },
-    verdict: {
-      recommendation: "Acordo",
-      probability: 0.72,
-      similarCases: 214,
-      tetoSugerido: 18750,
-    },
-    topics: [
-      {
-        id: "prescricional",
-        title: "Validade Prescricional",
-        description:
-          "Os documentos indicam que não houve lapso suficiente para reconhecimento de prescrição, mantendo a discussão concentrada na origem da contratação e nos descontos realizados.",
-      },
-      {
-        id: "probatoria",
-        title: "Robustez Probatória do Banco",
-        description:
-          "Contrato, comprovante de crédito e laudo referenciado formam um conjunto documental consistente, mas a ausência de biometria reforça a recomendação de composição monitorada.",
-      },
-      {
-        id: "jurisprudencia",
-        title: "Jurisprudência Local Aplicável",
-        description:
-          "Na comarca analisada, casos com documentação parcial semelhante têm apresentado condenações moderadas, com maior previsibilidade econômica em acordos dentro do teto sugerido.",
-      },
-    ],
-    generatedAt: "2026-04-17T21:15:00.000Z",
-    status: "completed",
-  },
-  {
-    caseId: "case-8831B",
-    processNumber: "0654321-09.2024.8.04.0001",
-    clientName: "João Batista Pereira",
-    vara: "4ª Vara Cível de Contagem",
-    dataFato: "2024-11-03",
-    complexidade: "Alta",
-    advogado: {
-      name: "Carlos Moura",
-      initials: "CM",
-    },
-    verdict: {
-      recommendation: "Defesa",
-      probability: 0.39,
-      similarCases: 176,
-    },
-    topics: [
-      {
-        id: "assinatura",
-        title: "Autenticidade da Assinatura",
-        description:
-          "A documentação apresentada inclui dossiê de autenticidade e convergência entre dados cadastrais, fortalecendo a linha defensiva quanto à legitimidade da contratação.",
-      },
-      {
-        id: "fluxo-credito",
-        title: "Rastreamento do Crédito",
-        description:
-          "O comprovante de crédito bancário e a evolução da dívida demonstram materialidade financeira compatível com a contratação questionada.",
-      },
-      {
-        id: "tendencia",
-        title: "Tendência Decisória da Vara",
-        description:
-          "A vara possui histórico favorável ao réu quando há rastreamento completo da contratação, reduzindo o risco residual de condenação.",
-      },
-    ],
-    generatedAt: "2026-04-16T18:05:00.000Z",
-    status: "reviewed",
-  },
-  {
-    caseId: "case-5502C",
-    processNumber: "0712456-14.2025.8.13.0024",
-    clientName: "Ana Carolina Ribeiro",
-    vara: "3ª Vara Cível de Juiz de Fora",
-    dataFato: "2025-02-21",
-    complexidade: "Baixa",
-    advogado: {
-      name: "Bruna Teixeira",
-      initials: "BT",
-    },
-    verdict: {
-      recommendation: "Acordo",
-      probability: 0.81,
-      similarCases: 132,
-      tetoSugerido: 9400,
-    },
-    topics: [
-      {
-        id: "desconto",
-        title: "Regularidade dos Descontos",
-        description:
-          "Há divergência entre a data do primeiro desconto e a comunicação prévia ao cliente, ampliando o risco reputacional e financeiro em eventual litígio.",
-      },
-      {
-        id: "canal",
-        title: "Canal de Contratação",
-        description:
-          "O canal remoto utilizado no caso possui histórico de maior contestação e menor conversão probatória, sugerindo acordo preventivo.",
-      },
-      {
-        id: "valoracao",
-        title: "Faixa Econômica de Encerramento",
-        description:
-          "Casos semelhantes encerrados por acordo nesta jurisdição convergiram para uma faixa de pagamento inferior ao custo médio de condenação.",
-      },
-    ],
-    generatedAt: "2026-04-15T14:42:00.000Z",
-    status: "completed",
-  },
-];
-
-function cloneCase(seed: MockCaseSeed): CaseResult {
-  return {
-    caseId: seed.caseId,
-    processNumber: seed.processNumber,
-    clientName: seed.clientName,
-    vara: seed.vara,
-    dataFato: seed.dataFato,
-    complexidade: seed.complexidade,
-    advogado: seed.advogado,
-    verdict: seed.verdict,
-    topics: seed.topics,
-    generatedAt: seed.generatedAt,
-  };
 }
 
-function cloneMetadata(seed: MockCaseSeed): CaseMetadata {
-  return {
-    caseId: seed.caseId,
-    processNumber: seed.processNumber,
-    clientName: seed.clientName,
-    vara: seed.vara,
-    dataFato: seed.dataFato,
-    verdictRecommendation: seed.verdict.recommendation,
-    status: seed.status,
-  };
+function readFileAsText(file: File) {
+  return new Promise<string>((resolve) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      resolve(typeof reader.result === "string" ? reader.result : "");
+    };
+
+    reader.onerror = () => resolve("");
+    reader.onabort = () => resolve("");
+
+    try {
+      reader.readAsText(file);
+    } catch {
+      resolve("");
+    }
+  });
 }
 
-function normalizeProcessNumber(value: string) {
-  return value.replace(/\D/g, "");
+function normalizeRecommendation(
+  recommendation: string | undefined,
+): VerdictRecommendation {
+  if (recommendation === "agreement" || recommendation === "Acordo") {
+    return "Acordo";
+  }
+
+  if (recommendation === "review" || recommendation === "Revisão") {
+    return "Revisão";
+  }
+
+  return "Defesa";
 }
 
-function buildGeneratedCase(payload: SubmitCasePayload): CaseResult {
-  const random = Math.floor(Math.random() * 9000) + 1000;
-  const caseId = `case-${random}N`;
-  const processNumber =
-    payload.processNumber || "0000000-00.0000.0.00.0000";
-  const recommendation: VerdictRecommendation =
-    payload.priority === "Alta" ? "Defesa" : "Acordo";
+function toFiniteNumber(value: unknown, fallback = 0) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function mapRiskBandToComplexity(riskBand?: string): CaseResult["complexidade"] {
+  if (riskBand === "high") {
+    return "Alta";
+  }
+
+  if (riskBand === "medium") {
+    return "Média";
+  }
+
+  return "Baixa";
+}
+
+function getPrimaryExplanation(response: BackendCaseResultResponse) {
+  return (
+    response.decision?.explanationShort?.trim() ||
+    response.analysis?.explanationShort?.trim() ||
+    response.lawyerExplanation?.trim() ||
+    "A recomendação foi gerada a partir da análise automatizada do caso e dos documentos processados."
+  );
+}
+
+function getDetailedExplanation(response: BackendCaseResultResponse) {
+  const paragraphs = (response.lawyerExplanation ?? response.analysis?.explanationText ?? "")
+    .replace(/\r\n/g, "\n")
+    .split(/\n\s*\n+/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  if (paragraphs.length <= 1) {
+    return undefined;
+  }
+
+  return paragraphs[1];
+}
+
+function sanitizeTopicTitle(value: string, index: number) {
+  const cleaned = value
+    .replace(/^\d+[.)-]?\s*/, "")
+    .replace(/\s*[:-]\s*$/, "")
+    .trim();
+
+  if (!cleaned || cleaned.length > 80) {
+    return `Tópico ${index + 1}`;
+  }
+
+  return cleaned;
+}
+
+export function parseTopicsFromExplanation(text: string): AiTopic[] {
+  const normalized = text.trim().replace(/\r\n/g, "\n");
+
+  if (!normalized) {
+    return [
+      {
+        id: "geral",
+        title: "Análise Geral",
+        description: text,
+      },
+    ];
+  }
+
+  let sections = normalized
+    .split(/\n\s*\n+/)
+    .map((section) => section.trim())
+    .filter(Boolean);
+
+  if (sections.length <= 1) {
+    sections = normalized
+      .split(/(?=^\s*\d+[.)-]?\s+)/gm)
+      .map((section) => section.trim())
+      .filter(Boolean);
+  }
+
+  if (sections.length === 0) {
+    return [
+      {
+        id: "geral",
+        title: "Análise Geral",
+        description: text,
+      },
+    ];
+  }
+
+  return sections.map((section, index) => {
+    const lines = section
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const firstLine = lines[0] ?? "";
+    const remainingText = lines.slice(1).join(" ").trim();
+
+    return {
+      id: `topic-${index + 1}`,
+      title: sanitizeTopicTitle(firstLine, index),
+      description:
+        remainingText ||
+        section.replace(/^\d+[.)-]?\s*/, "").trim() ||
+        text,
+    };
+  });
+}
+
+function mapBackendResultToCaseResult(
+  caseId: string,
+  response: BackendCaseResultResponse,
+): CaseResult {
+  const probability = toFiniteNumber(
+    response.decision?.lossProbability ?? response.analysis?.risk?.lossProbability,
+    0,
+  );
+  const similarCases = toFiniteNumber(
+    response.analysis?.similarCases?.sampleSize,
+    0,
+  );
+  const recommendation = normalizeRecommendation(response.decision?.action);
+  const tetoSugerido =
+    typeof response.decision?.offerMax === "number"
+      ? response.decision.offerMax
+      : typeof response.analysis?.offerMaxCents === "number"
+        ? response.analysis.offerMaxCents / 100
+        : undefined;
 
   return {
-    caseId,
-    processNumber,
-    clientName: payload.clientName?.trim() || "Cliente não informado",
-    vara: "8ª Vara Cível de Belo Horizonte",
-    dataFato: "2026-04-17",
-    complexidade: payload.priority === "Alta" ? "Alta" : "Média",
-    advogado: {
-      name: "Equipe Jurídica Banco UFMG",
-      initials: "BU",
-    },
+    caseId: response.caseId,
+    analysisId: response.analysisId,
+    processNumber: response.caseRecord?.externalCaseNumber ?? caseId,
+    clientName: response.caseRecord?.plaintiffName ?? "—",
+    vara: response.caseRecord?.courtDistrict ?? response.caseRecord?.uf ?? "—",
+    dataFato: response.caseRecord?.createdAt ?? new Date().toISOString(),
+    complexidade: mapRiskBandToComplexity(response.analysis?.risk?.riskBand),
+    advogado: { name: "Advogado Responsável", initials: "AR" },
     verdict: {
       recommendation,
-      probability: recommendation === "Acordo" ? 0.68 : 0.44,
-      similarCases: 97,
-      tetoSugerido: recommendation === "Acordo" ? 12450 : undefined,
+      probability,
+      similarCases,
+      tetoSugerido: recommendation === "Acordo" ? tetoSugerido : undefined,
+      explanationShort: getPrimaryExplanation(response),
+      detailedExplanation: getDetailedExplanation(response),
     },
-    topics: [
-      {
-        id: "triagem-documental",
-        title: "Triagem Documental Inicial",
-        description:
-          "Os arquivos enviados foram classificados e vinculados ao processo, permitindo análise estruturada dos autos e subsídios bancários.",
-      },
-      {
-        id: "aderencia-politica",
-        title: "Aderência à Política Vigente",
-        description:
-          "A priorização informada e o conjunto documental apontam compatibilidade com a política operacional atualmente ativa para a carteira cível.",
-      },
-      {
-        id: "risco-financeiro",
-        title: "Estimativa de Risco Financeiro",
-        description:
-          "A projeção inicial considera histórico de casos semelhantes e sugere faixa de encerramento economicamente vantajosa para o banco.",
-      },
-    ],
+    topics: parseTopicsFromExplanation(response.lawyerExplanation ?? ""),
     generatedAt: new Date().toISOString(),
   };
 }
@@ -250,53 +323,158 @@ function buildGeneratedCase(payload: SubmitCasePayload): CaseResult {
 export async function submitCase(
   payload: SubmitCasePayload,
 ): Promise<{ caseId: string }> {
-  console.log("submitCase(payload)", payload);
-  await delay(900);
+  const documents = await Promise.all(
+    payload.files.map(async (file) => ({
+      docType: "autos",
+      fileName: file.name,
+      textContent: await readFileAsText(file),
+    })),
+  );
 
-  const generated = buildGeneratedCase(payload);
-  mockCases.unshift({
-    ...generated,
-    status: "processing",
-  });
+  const response = await requestJson<BackendSubmitResponse>(
+    "/api/case-analyzer/submit",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        caseInput: {
+          externalCaseNumber: payload.processNumber,
+          plaintiffName: payload.clientName ?? "",
+          processType: "Nao reconhece operacao",
+          uf: "MG",
+          claimAmountCents: payload.claimAmountCents,
+        },
+        documents,
+      }),
+    },
+  );
 
-  return { caseId: generated.caseId };
+  if (!response.caseId) {
+    throw new Error("Resposta inválida do backend");
+  }
+
+  return { caseId: response.caseId };
+}
+
+export async function submitCaseFeedback(
+  caseId: string,
+  payload: SubmitCaseFeedbackPayload,
+): Promise<void> {
+  await requestJson(
+    `/api/case-feedback/${caseId}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function waitForCaseAnalysis(caseId: string): Promise<void> {
+  const maxRetries = 30;
+
+  for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+    const statusResponse = await getCaseStatus(caseId);
+
+    if (statusResponse.status === "analyzed") {
+      return;
+    }
+
+    await delay(2000);
+  }
+
+  throw new Error("Tempo limite excedido para processamento do caso");
 }
 
 export async function getCaseResult(caseId: string): Promise<CaseResult> {
-  console.log("getCaseResult(caseId)", caseId);
-  await delay(650);
+  const maxRetries = 30;
 
-  const existing = mockCases.find((item) => item.caseId === caseId);
+  for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+    try {
+      const statusResponse = await getCaseStatus(caseId);
 
-  if (existing) {
-    return cloneCase(existing);
+      if (statusResponse.status === "analyzed") {
+        try {
+          const resultResponse = await requestJson<BackendCaseResultResponse>(
+            "/api/case-analyzer/result",
+            undefined,
+            { caseId },
+          );
+
+          return mapBackendResultToCaseResult(caseId, resultResponse);
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 409) {
+            await delay(2000);
+            continue;
+          }
+
+          if (error instanceof ApiError && error.status === 404) {
+            throw new Error("Caso não encontrado");
+          }
+
+          throw error;
+        }
+      }
+
+      await delay(2000);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        throw new Error("Caso não encontrado");
+      }
+
+      throw error;
+    }
   }
 
-  const fallback = buildGeneratedCase({
-    processNumber: "0801234-56.2024.8.10.0001",
-    clientName: "Processo em Triagem",
-    category: "Cível",
-    priority: "Média",
-    files: [],
-  });
-
-  return {
-    ...fallback,
-    caseId,
-  };
+  throw new Error("Tempo limite excedido para processamento do caso");
 }
 
 export async function searchCase(
   processNumber: string,
 ): Promise<CaseMetadata | null> {
-  console.log("searchCase(processNumber)", processNumber);
-  await delay(800);
+  try {
+    const response = await getCaseStatus(processNumber);
 
-  const normalizedInput = normalizeProcessNumber(processNumber);
-  const found = mockCases.find(
-    (item) =>
-      normalizeProcessNumber(item.processNumber) === normalizedInput,
-  );
+    if (!response.caseId || !response.status) {
+      return null;
+    }
 
-  return found ? cloneMetadata(found) : null;
+    return {
+      caseId: response.caseId,
+      processNumber,
+      clientName: "—",
+      vara: "—",
+      dataFato: "—",
+      verdictRecommendation: "Defesa",
+      status: response.status === "analyzed" ? "completed" : "processing",
+    };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+export async function getDashboardAnalytics(): Promise<unknown | null> {
+  try {
+    return await requestJson<unknown>("/api/dashboard/analytics");
+  } catch (error) {
+    console.error("Erro ao buscar analytics do dashboard", error);
+    return null;
+  }
+}
+
+export async function checkHealth(): Promise<boolean> {
+  try {
+    const response = await requestJson<{ status?: string }>("/health");
+    return response.status === "ok";
+  } catch {
+    return false;
+  }
 }

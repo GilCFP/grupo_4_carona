@@ -166,3 +166,50 @@ export async function getDashboardEffectiveness() {
     })
   };
 }
+
+export async function getFeedbackSavingsSummary() {
+  const [totalFeedbacks, approvedFeedbacks, rejectedFeedbacks, feedbacks] =
+    await Promise.all([
+      prisma.caseFeedback.count(),
+      prisma.caseFeedback.count({
+        where: {
+          approvalStatus: "approved"
+        }
+      }),
+      prisma.caseFeedback.count({
+        where: {
+          approvalStatus: "rejected"
+        }
+      }),
+      prisma.caseFeedback.findMany({
+        include: {
+          case: true
+        },
+        orderBy: {
+          createdAt: "desc"
+        }
+      })
+    ]);
+
+  const totalSavedCostBrl = feedbacks.reduce((sum: number, feedback) => {
+    return sum + (feedback.estimatedCauseValueBrl ?? 0);
+  }, 0);
+
+  return {
+    totalFeedbacks,
+    approvedFeedbacks,
+    rejectedFeedbacks,
+    totalSavedCostBrl,
+    items: feedbacks.map((feedback) => ({
+      id: feedback.id,
+      caseId: feedback.caseId,
+      analysisId: feedback.analysisId,
+      externalCaseNumber: feedback.case.externalCaseNumber,
+      aiRecommendation: feedback.aiRecommendation,
+      approvalStatus: feedback.approvalStatus,
+      feedbackText: feedback.feedbackText,
+      estimatedCauseValueBrl: feedback.estimatedCauseValueBrl,
+      createdAt: feedback.createdAt.toISOString()
+    }))
+  };
+}

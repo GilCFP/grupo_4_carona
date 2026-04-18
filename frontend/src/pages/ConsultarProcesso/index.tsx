@@ -42,6 +42,18 @@ function verdictTone(recommendation: CaseMetadata["verdictRecommendation"]) {
   return recommendation === "Acordo" ? "success" : "warning";
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    if (error.message === "404") {
+      return "Nenhum processo encontrado para este número.";
+    }
+
+    return error.message;
+  }
+
+  return "Não foi possível consultar o processo.";
+}
+
 export function ConsultarProcessoPage() {
   // Consultar Processo page purpose: localizar um processo pelo número CNJ e abrir a análise previamente gerada.
   const navigate = useNavigate();
@@ -50,6 +62,7 @@ export function ConsultarProcessoPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CaseMetadata | null>(null);
   const [searched, setSearched] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   async function handleSearch() {
     if (!processNumber.trim()) {
@@ -58,10 +71,14 @@ export function ConsultarProcessoPage() {
 
     setLoading(true);
     setSearched(true);
+    setErrorMessage("");
 
     try {
       const response = await searchCase(processNumber);
       setResult(response);
+    } catch (error) {
+      setResult(null);
+      setErrorMessage(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -109,6 +126,12 @@ export function ConsultarProcessoPage() {
             </div>
           ) : null}
 
+          {!loading && errorMessage ? (
+            <div className="rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          ) : null}
+
           {!loading && result ? (
             <div className="rounded-[8px] border border-border-soft bg-[#fbfcfe] p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -137,7 +160,7 @@ export function ConsultarProcessoPage() {
             </div>
           ) : null}
 
-          {!loading && searched && !result ? (
+          {!loading && searched && !result && !errorMessage ? (
             <div className="flex h-52 flex-col items-center justify-center rounded-[8px] border border-dashed border-border-soft bg-[#fafbfd] px-6 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-mist text-brand-navy">
                 <FileSearch className="h-8 w-8" />

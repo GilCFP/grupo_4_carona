@@ -8,7 +8,7 @@ import { storedPolicySchema } from "@grupo4/shared";
 import { prisma } from "../client.js";
 import { parseJson, safeStringify } from "../../lib/json.js";
 
-type PublishPolicyInput = {
+export type PublishPolicyInput = {
   version: string;
   name: string;
   processType?: string | null;

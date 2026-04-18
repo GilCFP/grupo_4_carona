@@ -10,7 +10,7 @@ export type CaseCategory = "Cível" | "Trabalhista" | "Criminal" | "Tributário"
 
 export type CaseComplexity = "Baixa" | "Média" | "Alta";
 
-export type VerdictRecommendation = "Acordo" | "Defesa";
+export type VerdictRecommendation = "Acordo" | "Defesa" | "Revisão";
 
 export interface CaseLawyer {
   name: string;
@@ -39,10 +39,13 @@ export interface CaseVerdict {
   probability: number;
   similarCases: number;
   tetoSugerido?: number;
+  explanationShort: string;
+  detailedExplanation?: string;
 }
 
 export interface CaseResult {
   caseId: string;
+  analysisId?: string;
   processNumber: string;
   clientName: string;
   vara: string;

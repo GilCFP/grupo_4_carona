@@ -32,6 +32,30 @@ export type DashboardAnalytics = {
   effectiveness: Awaited<ReturnType<SQLiteRepository["getDashboardEffectiveness"]>>;
 };
 
+export type CreateCaseFeedbackInput = {
+  analysisId?: string;
+  feedbackText: string;
+  approvalStatus: "approved" | "rejected";
+};
+
+export type FeedbackSavingsSummary = {
+  totalFeedbacks: number;
+  approvedFeedbacks: number;
+  rejectedFeedbacks: number;
+  totalSavedCostBrl: number;
+  items: Array<{
+    id: string;
+    caseId: string;
+    analysisId: string;
+    externalCaseNumber: string | null;
+    aiRecommendation: string;
+    approvalStatus: string;
+    feedbackText: string;
+    estimatedCauseValueBrl: number | null;
+    createdAt: string;
+  }>;
+};
+
 export interface SQLiteRepository {
   generatePolicy(input: {
     runId: string;
@@ -56,6 +80,11 @@ export interface SQLiteRepository {
     caseId: string,
     input: LawyerActionInput
   ): Promise<void>;
+  createCaseFeedback(
+    caseId: string,
+    input: CreateCaseFeedbackInput
+  ): Promise<FeedbackSavingsSummary["items"][number]>;
+  getFeedbackSavingsSummary(): Promise<FeedbackSavingsSummary>;
   getDashboardSummary(): Promise<DashboardSummary>;
   getDashboardAdherence(): Promise<Record<string, unknown>>;
   getDashboardEffectiveness(): Promise<Record<string, unknown>>;

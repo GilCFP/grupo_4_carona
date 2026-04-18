@@ -11,9 +11,34 @@ const runtimeConfig = {
   port: Number(process.env.NEW_BACKEND_PORT ?? 3001)
 };
 
+function isAllowedOrigin(origin: string) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+}
+
 export function createNewBackendServer() {
   const app = Fastify({
     logger: false
+  });
+
+  app.addHook("onRequest", async (request, reply) => {
+    const origin = request.headers.origin;
+
+    if (origin && isAllowedOrigin(origin)) {
+      reply.header("Access-Control-Allow-Origin", origin);
+      reply.header("Vary", "Origin");
+      reply.header(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+      );
+      reply.header(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization"
+      );
+    }
+
+    if (request.method === "OPTIONS") {
+      return reply.code(204).send();
+    }
   });
 
   app.get("/health", async () => ({

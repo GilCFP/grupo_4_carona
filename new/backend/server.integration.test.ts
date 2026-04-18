@@ -175,6 +175,31 @@ test("new backend sobe independente e executa workflow1 + workflow2", async (con
   assert.equal(resultResponse.json().analysisId, caseBody.analysisId);
   assert.equal(resultResponse.json().decision.action, "agreement");
 
+  const feedbackResponse = await app.inject({
+    method: "POST",
+    url: `/api/case-feedback/${caseBody.caseId}`,
+    payload: {
+      analysisId: caseBody.analysisId,
+      feedbackText: "Parecer aprovado pelo advogado externo.",
+      approvalStatus: "approved"
+    }
+  });
+
+  assert.equal(feedbackResponse.statusCode, 201);
+  assert.equal(feedbackResponse.json().approvalStatus, "approved");
+  assert.equal(feedbackResponse.json().aiRecommendation, "agreement");
+  assert.equal(feedbackResponse.json().estimatedCauseValueBrl, 15000);
+
+  const feedbackSavingsResponse = await app.inject({
+    method: "GET",
+    url: "/api/case-feedback/savings"
+  });
+
+  assert.equal(feedbackSavingsResponse.statusCode, 200);
+  assert.equal(feedbackSavingsResponse.json().approvedFeedbacks, 1);
+  assert.equal(feedbackSavingsResponse.json().totalSavedCostBrl, 15000);
+  assert.equal(feedbackSavingsResponse.json().items.length, 1);
+
   const analyticsResponse = await app.inject({
     method: "GET",
     url: "/api/dashboard/analytics"

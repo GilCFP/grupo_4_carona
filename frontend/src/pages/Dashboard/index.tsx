@@ -21,6 +21,38 @@ import {
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
+import { getDashboardAnalytics } from "@/services/api";
+
+type KpiDirection = "up" | "down";
+
+interface DashboardKpi {
+  label: string;
+  value: string;
+  trend: string;
+  direction: KpiDirection;
+}
+
+interface VarianceDatum {
+  month: string;
+  previsto: number;
+  real: number;
+}
+
+interface DivergenceDatum {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface AuditRow {
+  caseId: string;
+  processId: string;
+  escritorio: string;
+  previsto: number;
+  real: number;
+  variancia: string;
+  status: string;
+}
 
 const officeOptions = [
   { label: "Todos os escritórios", value: "all" },
@@ -36,34 +68,34 @@ const actionOptions = [
   { label: "Revisão Contratual", value: "revisao" },
 ];
 
-const kpis = [
+const defaultKpis: DashboardKpi[] = [
   {
     label: "Taxa de Aderência",
     value: "94,2%",
     trend: "+1,2% vs mês anterior",
-    direction: "up" as const,
+    direction: "up",
   },
   {
     label: "Economia Gerada",
     value: "R$ 4,2M",
     trend: "+8,4% YTD",
-    direction: "up" as const,
+    direction: "up",
   },
   {
     label: "Tempo Médio de Fechamento",
     value: "42 dias",
     trend: "-3 dias trend",
-    direction: "down" as const,
+    direction: "down",
   },
   {
     label: "Efetividade",
     value: "88,5%",
     trend: "+0,5% resultados favoráveis",
-    direction: "up" as const,
+    direction: "up",
   },
 ];
 
-const varianceData = [
+const defaultVarianceData: VarianceDatum[] = [
   { month: "JAN", previsto: 2.4, real: 1.9 },
   { month: "FEV", previsto: 2.8, real: 2.1 },
   { month: "MAR", previsto: 2.2, real: 2.0 },
@@ -72,14 +104,16 @@ const varianceData = [
   { month: "JUN", previsto: 3.0, real: 2.5 },
 ];
 
-const divergenceData = [
+const defaultDivergenceData: DivergenceDatum[] = [
   { name: "Questões Probatórias", value: 45, color: "#0f2044" },
   { name: "Nova Jurisprudência", value: 30, color: "#5473c7" },
   { name: "Estratégia de Acordo", value: 15, color: "#90a6d8" },
   { name: "Outros", value: 10, color: "#ccd7eb" },
 ];
 
-const auditRows = [
+const defaultDivergenceCaseCount = 142;
+
+const defaultAuditRows: AuditRow[] = [
   {
     caseId: "case-2418A",
     processId: "0801234-56.2024.8.10.0001",
@@ -135,6 +169,20 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function formatCurrencyCompact(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function formatPercent(value: number) {
+  const normalized = value <= 1 ? value * 100 : value;
+  return `${normalized.toFixed(1).replace(".", ",")}%`;
+}
+
 function formatTooltipValue(
   value: number | string | ReadonlyArray<number | string> | undefined,
   suffix = "",
@@ -149,6 +197,20 @@ function formatTooltipValue(
           : 0;
 
   return `${parsedValue}${suffix}`;
+}
+
+function deriveDirection(trend: string, fallback: KpiDirection) {
+  const normalized = trend.trim();
+
+  if (normalized.startsWith("-")) {
+    return "down";
+  }
+
+  if (normalized.startsWith("+")) {
+    return "up";
+  }
+
+  return fallback;
 }
 
 function useChartWidth() {
@@ -182,10 +244,10 @@ function useChartWidth() {
   return { ref, width };
 }
 
-function exportAuditCsv() {
+function exportAuditCsv(rows: AuditRow[]) {
   const header =
     "PROCESSO ID,ESCRITÓRIO,PREVISTO (R$),REAL (R$),VARIÂNCIA,STATUS\n";
-  const body = auditRows
+  const body = rows
     .map((row) =>
       [
         row.processId,
@@ -209,11 +271,366 @@ function exportAuditCsv() {
   URL.revokeObjectURL(url);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getRecordValue(
+  record: Record<string, unknown> | null,
+  keys: string[],
+): Record<string, unknown> | null {
+  if (!record) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = record[key];
+
+    if (isRecord(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function getNumberValue(
+  record: Record<string, unknown> | null,
+  keys: string[],
+): number | null {
+  if (!record) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = record[key];
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function getStringValue(
+  record: Record<string, unknown> | null,
+  keys: string[],
+): string | null {
+  if (!record) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = record[key];
+
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function getArrayValue(
+  record: Record<string, unknown> | null,
+  keys: string[],
+): unknown[] | null {
+  if (!record) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = record[key];
+
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function mapVarianceData(raw: unknown): VarianceDatum[] | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const summary = getRecordValue(raw, ["summary"]);
+  const source =
+    getArrayValue(summary, ["costVariance", "varianceData"]) ??
+    getArrayValue(raw, ["costVariance", "varianceData"]);
+
+  if (!source) {
+    return null;
+  }
+
+  const mapped = source
+    .map((item): VarianceDatum | null => {
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const month =
+        getStringValue(item, ["month", "label", "name"])?.toUpperCase() ?? "";
+      const previsto = getNumberValue(item, ["previsto", "forecast", "planned"]);
+      const real = getNumberValue(item, ["real", "actual", "observed"]);
+
+      if (!month || previsto === null || real === null) {
+        return null;
+      }
+
+      return { month, previsto, real };
+    })
+    .filter((item): item is VarianceDatum => item !== null);
+
+  return mapped.length > 0 ? mapped : null;
+}
+
+function mapDivergenceData(raw: unknown): DivergenceDatum[] | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const summary = getRecordValue(raw, ["summary"]);
+  const source =
+    getArrayValue(summary, ["divergenceReasons", "reasons"]) ??
+    getArrayValue(raw, ["divergenceReasons", "reasons"]);
+
+  if (!source) {
+    return null;
+  }
+
+  const fallbackColors = defaultDivergenceData.map((item) => item.color);
+  const mapped = source
+    .map((item, index): DivergenceDatum | null => {
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const name = getStringValue(item, ["name", "label", "reason"]);
+      const value = getNumberValue(item, ["value", "percentage", "percent"]);
+      const color =
+        getStringValue(item, ["color"]) ??
+        fallbackColors[index % fallbackColors.length];
+
+      if (!name || value === null) {
+        return null;
+      }
+
+      return { name, value, color };
+    })
+    .filter((item): item is DivergenceDatum => item !== null);
+
+  return mapped.length > 0 ? mapped : null;
+}
+
+function mapDivergenceCaseCount(raw: unknown): number | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const summary = getRecordValue(raw, ["summary"]);
+
+  return (
+    getNumberValue(summary, ["caseCount", "cases", "totalCases"]) ??
+    getNumberValue(raw, ["caseCount", "cases", "totalCases"])
+  );
+}
+
+function mapAuditRows(raw: unknown): AuditRow[] | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const summary = getRecordValue(raw, ["summary"]);
+  const source =
+    getArrayValue(summary, ["divergentCases", "auditRows"]) ??
+    getArrayValue(raw, ["divergentCases", "auditRows"]);
+
+  if (!source) {
+    return null;
+  }
+
+  const mapped = source
+    .map((item): AuditRow | null => {
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const caseId = getStringValue(item, ["caseId", "id"]) ?? "";
+      const processId =
+        getStringValue(item, ["processId", "processNumber", "externalCaseNumber"]) ??
+        "";
+      const escritorio =
+        getStringValue(item, ["escritorio", "office", "firm"]) ?? "—";
+      const previsto = getNumberValue(item, ["previsto", "forecast", "planned"]);
+      const real = getNumberValue(item, ["real", "actual", "observed"]);
+      const variancia =
+        getStringValue(item, ["variancia", "variance", "varianceLabel"]) ?? "—";
+      const status = getStringValue(item, ["status"]) ?? "OK";
+
+      if (!caseId || !processId || previsto === null || real === null) {
+        return null;
+      }
+
+      return {
+        caseId,
+        processId,
+        escritorio,
+        previsto,
+        real,
+        variancia,
+        status,
+      };
+    })
+    .filter((item): item is AuditRow => item !== null);
+
+  return mapped.length > 0 ? mapped : null;
+}
+
+function mapKpis(raw: unknown): DashboardKpi[] | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const summary = getRecordValue(raw, ["summary"]);
+  const adherence = getRecordValue(raw, ["adherence"]);
+  const effectiveness = getRecordValue(raw, ["effectiveness"]);
+
+  const mapped = [...defaultKpis];
+  let changed = false;
+
+  const adherenceValue =
+    getNumberValue(adherence, ["value", "rate", "percentage"]) ??
+    getNumberValue(summary, ["taxaAderencia", "adherenceRate"]);
+  const adherenceTrend =
+    getStringValue(adherence, ["trend"]) ??
+    getStringValue(summary, ["adherenceTrend"]) ??
+    mapped[0].trend;
+
+  if (adherenceValue !== null) {
+    mapped[0] = {
+      ...mapped[0],
+      value: formatPercent(adherenceValue),
+      trend: adherenceTrend,
+      direction: deriveDirection(adherenceTrend, mapped[0].direction),
+    };
+    changed = true;
+  }
+
+  const economyValue =
+    getNumberValue(summary, [
+      "economiaGerada",
+      "savings",
+      "economyGenerated",
+      "savingAmount",
+    ]) ?? getNumberValue(raw, ["economiaGerada"]);
+  const economyTrend =
+    getStringValue(summary, ["economiaTrend", "savingsTrend"]) ?? mapped[1].trend;
+
+  if (economyValue !== null) {
+    mapped[1] = {
+      ...mapped[1],
+      value: formatCurrencyCompact(economyValue),
+      trend: economyTrend,
+      direction: deriveDirection(economyTrend, mapped[1].direction),
+    };
+    changed = true;
+  }
+
+  const closingTimeValue =
+    getNumberValue(summary, [
+      "tempoMedioFechamento",
+      "averageClosingTimeDays",
+      "closingTimeDays",
+    ]) ?? getNumberValue(raw, ["tempoMedioFechamento"]);
+  const closingTimeTrend =
+    getStringValue(summary, ["closingTimeTrend", "tempoTrend"]) ?? mapped[2].trend;
+
+  if (closingTimeValue !== null) {
+    mapped[2] = {
+      ...mapped[2],
+      value: `${Math.round(closingTimeValue)} dias`,
+      trend: closingTimeTrend,
+      direction: deriveDirection(closingTimeTrend, mapped[2].direction),
+    };
+    changed = true;
+  }
+
+  const effectivenessValue =
+    getNumberValue(effectiveness, ["value", "rate", "percentage"]) ??
+    getNumberValue(summary, ["efetividade", "effectivenessRate"]);
+  const effectivenessTrend =
+    getStringValue(effectiveness, ["trend"]) ??
+    getStringValue(summary, ["effectivenessTrend"]) ??
+    mapped[3].trend;
+
+  if (effectivenessValue !== null) {
+    mapped[3] = {
+      ...mapped[3],
+      value: formatPercent(effectivenessValue),
+      trend: effectivenessTrend,
+      direction: deriveDirection(effectivenessTrend, mapped[3].direction),
+    };
+    changed = true;
+  }
+
+  return changed ? mapped : null;
+}
+
 export function DashboardPage() {
   // Dashboard page purpose: apresentar métricas consolidadas, gráficos de variação e a auditoria de processos divergentes.
   const navigate = useNavigate();
   const varianceChart = useChartWidth();
   const divergenceChart = useChartWidth();
+  const [kpis, setKpis] = useState(defaultKpis);
+  const [varianceData, setVarianceData] = useState(defaultVarianceData);
+  const [divergenceData, setDivergenceData] = useState(defaultDivergenceData);
+  const [divergenceCaseCount, setDivergenceCaseCount] = useState(
+    defaultDivergenceCaseCount,
+  );
+  const [auditRows, setAuditRows] = useState(defaultAuditRows);
+
+  useEffect(() => {
+    let isActive = true;
+
+    void getDashboardAnalytics().then((response) => {
+      if (!isActive || !response) {
+        return;
+      }
+
+      const nextKpis = mapKpis(response);
+      const nextVariance = mapVarianceData(response);
+      const nextDivergence = mapDivergenceData(response);
+      const nextCaseCount = mapDivergenceCaseCount(response);
+      const nextAuditRows = mapAuditRows(response);
+
+      if (nextKpis) {
+        setKpis(nextKpis);
+      }
+
+      if (nextVariance) {
+        setVarianceData(nextVariance);
+      }
+
+      if (nextDivergence) {
+        setDivergenceData(nextDivergence);
+      }
+
+      if (typeof nextCaseCount === "number") {
+        setDivergenceCaseCount(nextCaseCount);
+      }
+
+      if (nextAuditRows) {
+        setAuditRows(nextAuditRows);
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -371,7 +788,9 @@ export function DashboardPage() {
               ) : null}
 
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-4xl font-bold text-[#1a1a2e]">142</span>
+                <span className="text-4xl font-bold text-[#1a1a2e]">
+                  {divergenceCaseCount}
+                </span>
                 <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
                   CASES
                 </span>
@@ -413,7 +832,7 @@ export function DashboardPage() {
             </p>
           </div>
 
-          <Button onClick={exportAuditCsv} variant="secondary">
+          <Button onClick={() => exportAuditCsv(auditRows)} variant="secondary">
             <Download className="h-4 w-4" />
             Exportar CSV
           </Button>

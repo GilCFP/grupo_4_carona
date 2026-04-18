@@ -6,12 +6,14 @@ import { SQLiteConfig } from "./configs/SQLiteConfig.js";
 import { LocalStorageDataSource } from "./datasources/LocalStorageDataSource.js";
 import { SQLiteDataSource } from "./datasources/SQLiteDataSource.js";
 import { CaseAnalyzerApi } from "./transportlayers/api/CaseAnalyzerApi.js";
+import { CaseFeedbackApi } from "./transportlayers/api/CaseFeedbackApi.js";
 import { DashboardApi } from "./transportlayers/api/DashboardApi.js";
 import { PolicyGeneratorApi } from "./transportlayers/api/PolicyGeneratorApi.js";
 import { registerBackendApis } from "./transportlayers/api/registerBackendApis.js";
 import { StatusApi } from "./transportlayers/api/StatusApi.js";
 import { TraceApi } from "./transportlayers/api/TraceApi.js";
 import { CaseAnalyzerUseCase } from "./usecase/CaseAnalyzerUseCase.js";
+import { CaseFeedbackUseCase } from "./usecase/CaseFeedbackUseCase.js";
 import { DashboardUseCase } from "./usecase/DashboardUseCase.js";
 import { PolicyGeneratorUseCase } from "./usecase/PolicyGeneratorUseCase.js";
 import { StatusUseCase } from "./usecase/StatusUseCase.js";
@@ -47,6 +49,7 @@ export const backendCompositionRoot = {
       sqliteRepository,
       localStorageRepository
     ),
+    caseFeedbackUseCase: new CaseFeedbackUseCase(sqliteRepository),
     dashboardUseCase: new DashboardUseCase(sqliteRepository),
     statusUseCase: new StatusUseCase(sqliteRepository)
   }
@@ -58,6 +61,9 @@ export const backendApis = {
   ),
   caseAnalyzerApi: new CaseAnalyzerApi(
     backendCompositionRoot.usecases.caseAnalyzerUseCase
+  ),
+  caseFeedbackApi: new CaseFeedbackApi(
+    backendCompositionRoot.usecases.caseFeedbackUseCase
   ),
   dashboardApi: new DashboardApi(
     backendCompositionRoot.usecases.dashboardUseCase
@@ -71,10 +77,12 @@ export {
   PolicyCritiqueAgent,
   PolicyGeneratorAgent,
   CaseAnalyzerUseCase,
+  CaseFeedbackUseCase,
   DashboardUseCase,
   PolicyGeneratorUseCase,
   StatusUseCase,
   CaseAnalyzerApi,
+  CaseFeedbackApi,
   DashboardApi,
   PolicyGeneratorApi,
   registerBackendApis,

@@ -2,22 +2,31 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "../..");
 
+dotenv.config({ path: path.join(rootDir, ".env") });
+
 const prisma = new PrismaClient();
 
-const defaultSubsidiesCsv = path.join(
-  rootDir,
-  "Cópia de Hackaton_Enter_Base_Candidatos.xlsx - Subsídios disponibilizados.csv"
-);
-const defaultOutcomesCsv = path.join(
-  rootDir,
-  "Cópia de Hackaton_Enter_Base_Candidatos.xlsx - Resultados dos processos.csv"
-);
+function findCsvBySuffix(suffix) {
+  const entry = fs
+    .readdirSync(rootDir, { withFileTypes: true })
+    .find((dirent) => dirent.isFile() && dirent.name.endsWith(suffix));
+
+  if (!entry) {
+    throw new Error(`CSV não encontrado com sufixo: ${suffix}`);
+  }
+
+  return path.join(rootDir, entry.name);
+}
+
+const defaultSubsidiesCsv = findCsvBySuffix("disponibilizados.csv");
+const defaultOutcomesCsv = findCsvBySuffix("Resultados dos processos.csv");
 
 function parseCsvLine(line) {
   const values = [];
