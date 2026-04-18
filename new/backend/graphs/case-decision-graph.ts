@@ -23,6 +23,7 @@ import { extractFactsAction } from "../agents/extract-facts-action.js";
 import { extractFactsCritique } from "../agents/extract-facts-critique.js";
 import { planDecisionToolResearch } from "../agents/plan-decision-tool-research.js";
 import { proposeDecisionAction } from "../agents/propose-decision-action.js";
+import { RiskAnalyzerAgent } from "../agents/CaseAnalyzer/RiskAnalyzerAgent.js";
 import { env } from "../config/env.js";
 import { createAgentRun } from "../db/repositories/agent-run-repository.js";
 import { persistCaseAnalysis } from "../db/repositories/case-repository.js";
@@ -32,7 +33,6 @@ import {
 } from "../lib/case-decision.js";
 import { ingestCase } from "../services/case-decision/ingest-case.js";
 import { retrieveSimilarCases } from "../services/case-decision/retrieve-similar-cases.js";
-import { scoreCaseRisk } from "../services/case-decision/score-risk.js";
 import { caseDecisionTools } from "../tools/case-decision-tools.js";
 
 type GraphCaseDecisionState = CaseDecisionState & {
@@ -41,6 +41,7 @@ type GraphCaseDecisionState = CaseDecisionState & {
 };
 
 const caseDecisionToolNode = new ToolNode(caseDecisionTools);
+const riskAnalyzerAgent = new RiskAnalyzerAgent();
 
 function parseToolContent(content: unknown): unknown {
   if (typeof content === "string") {
@@ -266,12 +267,18 @@ async function scoreRiskNode(
   state: GraphCaseDecisionState
 ): Promise<Partial<GraphCaseDecisionState>> {
   return runNode("scoreRisk", state, async () => {
-    if (!state.similarCases) {
-      throw new Error("Nao foi possivel calcular risco sem casos similares.");
+    if (!state.similarCases || !state.caseRecord || !state.normalizedFacts) {
+      throw new Error("Nao foi possivel calcular risco sem historico, caso e fatos.");
     }
 
     return {
-      riskScore: riskScoreSchema.parse(scoreCaseRisk(state.similarCases))
+      riskScore: riskScoreSchema.parse(
+        riskAnalyzerAgent.analyze({
+          similarCases: state.similarCases,
+          caseRecord: state.caseRecord,
+          facts: state.normalizedFacts
+        })
+      )
     };
   });
 }

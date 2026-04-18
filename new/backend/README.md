@@ -15,6 +15,7 @@ Agora ela tambem pode rodar de forma independente, com servidor, demo e validaca
   - `CaseAnalyzer/ExtractFactsAgent`: espelha a extracao inicial de fatos.
   - `CaseAnalyzer/ExtractFactsCritiqueAgent`: espelha a critica dos fatos extraidos.
   - `CaseAnalyzer/DecisionToolResearchPlannerAgent`: espelha o planner de tools do workflow2.
+  - `CaseAnalyzer/RiskAnalyzerAgent`: consolida a analise de risco a partir do historico similar.
   - `CaseAnalyzer/DecisionProposerAgent`: espelha a proposta inicial de decisao.
   - `CaseAnalyzer/DecisionCritiqueAgent`: espelha a critica da decisao.
   - `CaseAnalyzer/ExplainForLawyerAgent`: espelha a explicacao final ao advogado.
