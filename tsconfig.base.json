@@ -13,8 +13,8 @@
     "verbatimModuleSyntax": true,
     "baseUrl": ".",
     "paths": {
-      "@grupo4/shared": ["packages/shared/src/index.ts"],
-      "@grupo4/shared/*": ["packages/shared/src/*"]
+      "@grupo4/shared": ["backend/packages/shared/index.ts"],
+      "@grupo4/shared/*": ["backend/packages/shared/*"]
     }
   }
 }

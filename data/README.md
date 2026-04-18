@@ -1,31 +1,20 @@
-# Dados
+# Data
 
-Coloque aqui os arquivos fornecidos pela organização do hackathon.
+Arquivos de exemplo e seed do projeto.
 
-## Estrutura esperada
+## Estrutura
 
-```
+```text
 data/
-├── sentencas.csv          # 60.000 sentenças judiciais
-├── subsidios/             # documentos de subsídio por processo
-│   └── <id_processo>/
-│       ├── contrato.*
-│       ├── extrato.*
-│       ├── comprovante_credito.*
-│       ├── dossie.*
-│       ├── demonstrativo_divida.*
-│       └── laudo_referenciado.*
-└── processos_exemplo/     # 2 pastas de processos para simulação
-    ├── processo_01/
-    │   ├── autos/
-    │   └── subsidios/
-    └── processo_02/
-        ├── autos/
-        └── subsidios/
+├── exemplos/
+│   ├── Cópia de Hackaton_Enter_Base_Candidatos.xlsx - Subsídios disponibilizados.csv
+│   └── Cópia de Hackaton_Enter_Base_Candidatos.xlsx - Resultados dos processos.csv
+└── hackaton.sqlite
 ```
 
-## Importante
+## Observações
 
-- Os dados são fornecidos pela organização do hackathon e **não devem ser versionados** neste repositório.
-- O `.gitignore` já está configurado para ignorar os arquivos de dados.
-- Para fins de demonstração, você pode incluir dados sintéticos ou anonimizados.
+- Os CSVs em `data/exemplos/` são usados no seed inicial do banco.
+- O backend procura esses arquivos primeiro em `data/exemplos/`.
+- Em fallback, o projeto ainda aceita arquivos com o mesmo sufixo na raiz.
+- `hackaton.sqlite` é o banco local fora do Docker, quando aplicável.

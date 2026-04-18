@@ -3,20 +3,28 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "backend/packages/*"
   ],
   "scripts": {
-    "api:start": "node --import tsx/esm apps/api/src/server.ts",
     "db:generate": "prisma generate",
-    "db:push": "node src/database/pushSchema.js",
-    "db:seed": "node src/database/importCsvs.js",
+    "db:push": "node backend/scripts/push-schema.js",
+    "db:seed": "node scripts/database/importCsvs.js",
+    "start:all": "docker compose up --build",
+    "start:all:detached": "docker compose up --build -d",
     "db:studio": "prisma studio",
-    "workflow1:calibrate": "node --import tsx/esm apps/api/src/scripts/run-policy-calibration.ts",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "backend:api:start": "node --import tsx/esm backend/server.ts",
+    "backend:policy:bootstrap": "node --import tsx/esm backend/scripts/bootstrap-policy.ts",
+    "backend:policy:ensure": "node --import tsx/esm backend/scripts/ensure-static-policy.ts",
+    "backend:demo:workflows": "node --import tsx/esm backend/scripts/run-demo-workflows.ts",
+    "backend:typecheck": "tsc -p backend/tsconfig.json --noEmit",
+    "backend:test:integration": "NODE_ENV=test node --import tsx/esm --test backend/**/*.integration.test.ts",
+    "backend:validate": "npm run backend:typecheck && npm run backend:test:integration",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:unit": "node --import tsx/esm --test apps/api/src/lib/*.test.ts apps/api/src/services/**/*.test.ts apps/api/src/agents/*.test.ts",
-    "test:integration": "node --import tsx/esm --test apps/api/src/**/*.integration.test.ts",
-    "validate:workflow1": "npm run typecheck && npm run test:unit && npm run test:integration"
+    "test:integration": "npm run backend:test:integration",
+    "validate:all": "npm run backend:validate"
   },
   "dependencies": {
     "@langchain/core": "^0.3.23",

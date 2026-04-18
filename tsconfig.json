@@ -4,8 +4,7 @@
     "noEmit": true
   },
   "include": [
-    "apps/**/*.ts",
-    "packages/**/*.ts"
+    "backend/**/*.ts"
   ],
   "exclude": [
     "node_modules",

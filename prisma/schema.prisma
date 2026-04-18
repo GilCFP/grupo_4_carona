@@ -165,6 +165,8 @@ model Case {
   extractedFactsRuns ExtractedFactsRun[]
   analyses           CaseAnalysis[]
   lawyerActions      LawyerAction[]
+  feedbacks          CaseFeedback[]
+  effectiveness      CaseEffectiveness?
   agentRuns          AgentRun[]
 
   @@index([externalCaseNumber])
@@ -227,11 +229,47 @@ model CaseAnalysis {
   case                Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
   policy              Policy          @relation(fields: [policyVersion], references: [version], onDelete: Restrict)
   lawyerActions       LawyerAction[]
+  feedbacks           CaseFeedback[]
+  effectivenessEntries CaseEffectiveness[]
   feedbackEvents      FeedbackEvent[]
 
   @@index([caseId, createdAt])
   @@index([policyVersion, recommendedAction])
   @@map("case_analyses")
+}
+
+model CaseFeedback {
+  id                    String       @id @default(cuid())
+  caseId                String       @map("case_id")
+  analysisId            String       @map("analysis_id")
+  feedbackText          String       @map("feedback_text")
+  approvalStatus        String       @map("approval_status")
+  aiRecommendation      String       @map("ai_recommendation")
+  estimatedCauseValueBrl Float?      @map("estimated_cause_value_brl")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  case                  Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  analysis              CaseAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt])
+  @@index([analysisId, createdAt])
+  @@index([approvalStatus, aiRecommendation])
+  @@map("case_feedbacks")
+}
+
+model CaseEffectiveness {
+  id              String       @id @default(cuid())
+  caseId          String       @unique @map("case_id")
+  analysisId      String       @map("analysis_id")
+  finalOutcome    String       @map("final_outcome")
+  actualAmountBrl Float?       @map("actual_amount_brl")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  case            Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  analysis        CaseAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId])
+  @@index([finalOutcome])
+  @@map("case_effectiveness")
 }
 
 model LawyerAction {
