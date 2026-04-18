@@ -1,174 +1,255 @@
-# HACKATHON UFMG 2026 — Enter AI Challenge
+# Banco UFMG Legal Analytics
 
-**17 e 18 de Abril de 2026**
+Plataforma de análise jurídica para o desafio da Enter AI, com:
 
-> Aplique IA para resolver, em equipe, um problema real que toda grande empresa do Brasil enfrenta.
+- `frontend` em React + Vite + TypeScript
+- `backend` em Node.js + Fastify + Prisma
+- banco SQLite com seed a partir dos CSVs do projeto
+- execução local simplificada com Docker
 
----
+## Estrutura atual
 
-## Premiação
-
-**R$ 10.000** para a equipe vencedora
-
----
-
-## 1. Contexto
-
-A **Enter** é uma empresa de Enterprise AI — a maior empresa nativa de IA do país — focada em soluções para processos jurídicos cíveis massificados: casos repetitivos em que pessoas físicas processam grandes empresas (ex: consumidor que processa uma companhia aérea por atraso de voo).
-
-Seu produto principal, o **EnterOS**, é um modelo de operação jurídico onde uma empresa centraliza a gestão de todos os seus escritórios de advocacia, aprimorando a qualidade das peças jurídicas e a produtividade dos advogados. O EnterOS é construído sobre agentes de IA que automatizam e agregam inteligência a todas as etapas de um processo judicial — do recebimento da ação até o encerramento do caso.
-
----
-
-## 2. Problema: Política de Acordos
-
-O **Banco UFMG** recebe, em média, **~15 mil novos processos por mês**. Desses, cerca de **~5 mil** envolvem um cenário específico: a pessoa que está processando o banco alega que **não reconhece a contratação de um empréstimo** — ela afirma estar sofrendo descontos referentes ao pagamento de um empréstimo que nunca contratou.
-
-Diante de cada processo, o Banco precisa tomar uma decisão estratégica: **defender-se no judiciário ou propor um acordo**.
-
-O fluxo atual funciona assim:
-
-1. Um advogado externo recebe o processo pela plataforma da Enter.
-2. Na plataforma, ele acessa os **Autos** (petição inicial, procuração, etc.) e os **Subsídios** (documentos do banco: extrato, contrato, comprovante de crédito, etc.).
-3. Com base nesses documentos e na política do banco, decide: **defesa ou acordo?**
-4. Se optar por acordo, entra em contato com a parte autora para negociar.
-5. Após a decisão, reporta: se optou por acordo ou defesa; o valor proposto; e o resultado da negociação.
-
-O desafio é triplo:
-- Definir uma **boa política de acordos**
-- Garantir que os advogados a sigam de forma **consistente**
-- **Monitorar continuamente** os resultados para avaliar se a política está sendo efetiva
-
----
-
-## 3. Sua Missão
-
-Construir uma solução que:
-
-- **Defina uma política de acordos** para o Banco UFMG em casos de não reconhecimento de contratação de empréstimo
-- **Garanta a implementação** dessa política pelo advogado que está analisando cada caso
-- **Monitore os resultados** para avaliar se a política de acordos está sendo efetiva
-
----
-
-## 4. Requisitos da Solução
-
-A solução deve conter, no mínimo:
-
-| # | Requisito |
-|---|-----------|
-| 1 | **Regra de decisão** — lógica que analise o processo e determine: acordo ou defesa |
-| 2 | **Sugestão de valor** — caso a recomendação seja acordo, sugerir qual valor oferecer |
-| 3 | **Acesso à recomendação** — meio prático do advogado acessar a recomendação para o caso que está analisando |
-| 4 | **Monitoramento de aderência** — forma do banco acompanhar se a política está sendo seguida pelos advogados |
-| 5 | **Monitoramento de efetividade** — forma do banco avaliar se a política está gerando os resultados esperados |
-
-> Fique à vontade para usar quaisquer ferramentas e tecnologias.
-
----
-
-## 5. O Que Você Está Recebendo
-
-Cada equipe receberá:
-
-- **Chave da OpenAI** com créditos carregados
-- **Base de dados** (`.csv`) com o resultado de 60.000 sentenças judiciais dos últimos meses do Banco UFMG em casos de não reconhecimento de contratação de empréstimo (número do caso, valor da causa, resultado, valor de condenação)
-- **Base de documentos** (subsídios) disponibilizados pelo Banco UFMG nos últimos 12 meses
-- **2 pastas de processos exemplo** para simulação, cada uma contendo:
-  - Autos na íntegra (petição inicial, procuração e demais documentos)
-  - Subsídios do cliente (documentos de defesa do banco)
-
-### Descrição dos Subsídios
-
-| Documento | Descrição |
-|-----------|-----------|
-| **Contrato** | Contrato firmado entre o Banco UFMG e a parte autora |
-| **Extrato** | Extrato da conta corrente da parte autora com o banco |
-| **Comprovante de crédito** | Documento regulatório junto ao BACEN atestando a legitimidade da operação |
-| **Dossiê** | Verificação de autenticidade das assinaturas e documentos pessoais do contrato |
-| **Demonstrativo de evolução da dívida** | Extrato mês a mês do saldo de dívida e pagamentos |
-| **Laudo referenciado** | Síntese da operação de crédito (data, valores, prazos, canal de contratação, etc.) |
-
----
-
-## 6. Formato de Entrega
-
-Cada equipe deve submeter **neste repositório**:
-
-```
-├── src/                  # código-fonte da solução
-├── data/                 # dados de exemplo (não inclua dados sensíveis)
-├── docs/                 # apresentação final e documentação
-│   └── presentation.*    # slides ou documento para a apresentação
-├── SETUP.md              # instruções de instalação e execução
-└── README.md             # este arquivo (pode ser complementado)
+```text
+grupo_4_carona/
+├── backend/                  # API principal, workflows, agentes, serviços e pacote shared interno
+│   ├── agents/               # agentes usados nos workflows de policy e decisão
+│   ├── configs/              # env, SQLite, storage local e policy estática
+│   ├── datasources/          # acesso a Prisma, SQLite e storage local
+│   ├── domain/               # regras de domínio e testes de lógica
+│   ├── graphs/               # grafos/orquestração dos workflows
+│   ├── packages/shared/      # único pacote compartilhado do projeto (@grupo4/shared)
+│   ├── platform/             # integrações utilitárias de plataforma
+│   ├── repositories/         # contratos e implementações SQLite
+│   ├── scripts/              # push de schema, demo e bootstrap de policy
+│   ├── services/             # serviços de policy calibration e case decision
+│   ├── test-helpers/         # fixtures e helpers de teste
+│   ├── tools/                # tools usadas pelos agentes
+│   ├── transportlayers/api/  # rotas HTTP do backend
+│   ├── usecase/              # casos de uso expostos pela API
+│   ├── utils/                # utilitários gerais
+│   ├── index.ts              # composition root do backend
+│   ├── server.ts             # bootstrap HTTP principal
+│   └── tsconfig.json         # TypeScript isolado do backend
+├── frontend/                 # aplicação web do advogado
+│   ├── src/components/       # layout e componentes reutilizáveis
+│   ├── src/pages/            # Dashboard, Novo Processo, Resultado, Consultar
+│   ├── src/services/         # integração com a API
+│   ├── src/types/            # tipos do frontend
+│   └── src/routes/           # rotas React Router
+├── prisma/                   # schema Prisma usado pelo backend
+├── scripts/database/         # seed CSV legado usado no bootstrap do banco
+├── docker/                   # Dockerfiles, entrypoint e config nginx
+├── data/                     # banco local e documentação de dados
+├── docker-compose.yml        # sobe frontend + backend + volumes
+├── package.json              # scripts raiz do projeto
+└── DOCKER.md                 # detalhes extras de execução via Docker
 ```
 
-Além do repositório, submeter:
+## Como rodar tudo com um comando
 
-1. **Repositório no GitHub** com o código-fonte completo
-2. **Arquivos auxiliares** necessários para executar a solução (dependências, setup, dados de exemplo)
-3. **Vídeo de até 2 minutos** demonstrando o funcionamento da ferramenta do ponto de vista do advogado
-4. **Apresentação** (slides ou outro formato) para a apresentação final — máx. 15 min — cobrindo:
-   - Explicação da política de acordos (linguagem acessível ao time jurídico)
-   - Potencial financeiro da iniciativa
-   - Experiência do usuário advogado
-   - Arquitetura e solução técnica
-   - Limitações conhecidas da solução
-   - Próximos passos (considerando 1 mês adicional de desenvolvimento)
+### Pré-requisitos
 
----
+- Docker
+- Docker Compose
+- arquivo `.env` na raiz
 
-## 7. Critérios de Avaliação
-
-| # | Critério | Descrição |
-|---|----------|-----------|
-| 1 | **Leitura do problema** | Entendimento do caso, priorização correta e impacto no negócio |
-| 2 | **Criatividade e usabilidade** | Criatividade na abordagem e qualidade da experiência de uso |
-| 3 | **Colaboração** | Divisão de responsabilidades, colaboração e clareza na apresentação |
-| 4 | **Execução** | Acurácia do output, funcionalidades embarcadas, consistência e viabilidade |
-| 5 | **Uso de IA** | Aplicação de IA para acelerar, melhorar ou diferenciar a solução |
-
----
-
-## 8. Prazo
-
-| Evento | Data/Hora |
-|--------|-----------|
-| **Submissão** | 18/04 às **04:00** (da manhã) |
-| **Apresentações finais** | 18/04 às **07:00** |
-
-> Boa sorte — e bom café e/ou energético! ☕
-
----
-
-## Como Submeter
-
-### 1. Crie o repositório da sua equipe
-
-Acesse [github.com/talismanai/hackathon-ufmg-2026](https://github.com/talismanai/hackathon-ufmg-2026) e clique em **"Use this template" → "Create a new repository"**.
-
-- **Nome do repositório:** `hackathon-ufmg-2026-grupo<N>` — substitua `<N>` pelo número do seu grupo  
-  _Exemplo: `hackathon-ufmg-2026-grupo7`_
-- **Visibilidade:** `Public`
-
-### 2. Clone e desenvolva
+Se ainda não existir:
 
 ```bash
-# Clone o repositório da sua equipe
-git clone https://github.com/<seu-usuario>/hackathon-ufmg-2026-grupo<N>.git
-cd hackathon-ufmg-2026-grupo<N>
-
-# Configure o ambiente seguindo o SETUP.md
+cp .env.example .env
 ```
 
-### 3. Submeta
+Depois preencha ao menos:
 
-Envie a URL do seu repositório público para o formulário de entrega presente no site [hackathon.getenter.ai](https://hackathon.getenter.ai) até **18/04 às 04:00**.
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
 
+### Comando único
 
+Na raiz do projeto:
 
-A URL deve seguir o formato:
+```bash
+npm run start:all
 ```
-https://github.com/<usuario-ou-org>/hackathon-ufmg-2026-grupo<N>
+
+Esse comando:
+
+- builda as imagens
+- sobe o `backend` em `http://localhost:3001`
+- sobe o `frontend` em `http://localhost:4173`
+- cria o banco SQLite no volume Docker na primeira execução
+- aplica o schema Prisma
+- roda o seed com os CSVs da raiz do projeto
+- executa o workflow 1 para calibrar e publicar a policy inicial
+- aplica fallback de policy estática se a calibração falhar
+
+## URLs
+
+- Frontend: `http://localhost:4173`
+- Backend health: `http://localhost:3001/health`
+
+## Scripts principais
+
+### Execução
+
+```bash
+npm run start:all
 ```
+
+Sobe tudo em foreground.
+
+```bash
+npm run start:all:detached
+```
+
+Sobe tudo em background.
+
+```bash
+npm run docker:down
+```
+
+Derruba os containers.
+
+```bash
+npm run docker:logs
+```
+
+Segue os logs dos serviços.
+
+### Backend
+
+```bash
+npm run backend:api:start
+```
+
+Sobe apenas a API fora do Docker.
+
+```bash
+npm run backend:policy:ensure
+```
+
+Garante uma policy estática publicada.
+
+```bash
+npm run backend:demo:workflows
+```
+
+Roda o fluxo de demonstração do backend.
+
+```bash
+npm run backend:typecheck
+```
+
+Typecheck do backend.
+
+```bash
+npm run backend:test:integration
+```
+
+Teste de integração do backend.
+
+### Banco
+
+```bash
+npm run db:generate
+```
+
+Gera o Prisma Client.
+
+```bash
+npm run db:push
+```
+
+Aplica o schema Prisma ao SQLite.
+
+```bash
+npm run db:seed
+```
+
+Importa os CSVs para o banco.
+
+### Frontend
+
+```bash
+cd frontend
+npm run dev
+```
+
+Roda o frontend em modo desenvolvimento.
+
+```bash
+cd frontend
+npm run build
+```
+
+Build de produção do frontend.
+
+## Fluxo de primeira execução
+
+1. Configure `.env`.
+2. Garanta que os CSVs do desafio estão na raiz do projeto.
+3. Rode:
+
+```bash
+npm run start:all
+```
+
+4. Abra:
+
+```text
+http://localhost:4173
+```
+
+## Dados e seed
+
+Os dois arquivos CSV usados no seed ficam em `data/exemplos/`:
+
+- `data/exemplos/Cópia de Hackaton_Enter_Base_Candidatos.xlsx - Subsídios disponibilizados.csv`
+- `data/exemplos/Cópia de Hackaton_Enter_Base_Candidatos.xlsx - Resultados dos processos.csv`
+
+Na primeira subida do container do backend:
+
+- o banco é criado em volume Docker
+- o schema é aplicado
+- os CSVs são importados
+
+Se quiser recriar tudo do zero:
+
+```bash
+docker compose down -v
+npm run start:all
+```
+
+## Stack
+
+### Frontend
+
+- React
+- Vite
+- TypeScript
+- TailwindCSS
+- React Router
+- Recharts
+
+### Backend
+
+- Node.js
+- Fastify
+- Prisma
+- SQLite
+- OpenAI
+- Zod
+
+## Observações importantes
+
+- O projeto não usa mais `apps/api`.
+- O projeto usa apenas um pacote compartilhado: `backend/packages/shared`.
+- O runtime principal está em [backend](/home/bernardo/Desktop/Hackton/grupo_4_carona/backend).
+- O frontend já está integrado com as rotas reais do backend.
+
+## Documentação complementar
+
+- [DOCKER.md](./DOCKER.md)
+- [backend/README.md](./backend/README.md)
+- [backend/FRONTEND_ENDPOINTS.md](./backend/FRONTEND_ENDPOINTS.md)
+- [frontend/README.md](./frontend/README.md)

@@ -1,4 +1,5 @@
 import {
+  CircleDollarSign,
   CheckCircle2,
   ChevronRight,
   ShieldCheck,
@@ -8,9 +9,19 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
-import { getCaseResult, submitCaseFeedback } from "@/services/api";
-import type { CaseResult, LawyerDecision } from "@/types/case";
+import {
+  getCaseEffectiveness,
+  getCaseResult,
+  saveCaseEffectiveness,
+  submitCaseFeedback,
+} from "@/services/api";
+import type {
+  CaseEffectivenessOutcome,
+  CaseResult,
+  LawyerDecision,
+} from "@/types/case";
 
 type TopicDecisions = Record<
   string,
@@ -19,6 +30,11 @@ type TopicDecisions = Record<
     note: string;
   }
 >;
+
+type EffectivenessForm = {
+  finalOutcome: CaseEffectivenessOutcome | "";
+  actualAmount: string;
+};
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", {
@@ -30,6 +46,13 @@ function formatCurrency(value: number) {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR").format(new Date(value));
+}
+
+function parseCurrencyInput(value: string) {
+  const normalized = value.trim().replace(/\./g, "").replace(",", ".");
+  const parsed = Number(normalized);
+
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function complexityTone(complexidade: CaseResult["complexidade"]) {
@@ -133,8 +156,16 @@ export function ResultadoPage() {
   const [topicDecisions, setTopicDecisions] = useState<TopicDecisions>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [isSavingEffectiveness, setIsSavingEffectiveness] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [effectivenessMessage, setEffectivenessMessage] = useState("");
+  const [effectivenessError, setEffectivenessError] = useState("");
+  const [isEffectivenessLocked, setIsEffectivenessLocked] = useState(false);
+  const [effectivenessForm, setEffectivenessForm] = useState<EffectivenessForm>({
+    finalOutcome: "",
+    actualAmount: "",
+  });
 
   useEffect(() => {
     if (!caseId) {
@@ -148,16 +179,36 @@ export function ResultadoPage() {
     setIsLoading(true);
     setErrorMessage("");
     setFeedbackMessage("");
+    setEffectivenessMessage("");
+    setEffectivenessError("");
+    setIsEffectivenessLocked(false);
     setResult(null);
     setTopicDecisions({});
+    setEffectivenessForm({
+      finalOutcome: "",
+      actualAmount: "",
+    });
 
-    void getCaseResult(caseId)
-      .then((response) => {
+    void Promise.all([getCaseResult(caseId), getCaseEffectiveness(caseId)])
+      .then(([response, effectiveness]) => {
         if (!isActive) {
           return;
         }
 
         setResult(response);
+        if (response.resultStatus === "approved" && effectiveness) {
+          setIsEffectivenessLocked(true);
+          setEffectivenessMessage(
+            "O monitoramento de efetividade já foi registrado e não pode ser alterado.",
+          );
+          setEffectivenessForm({
+            finalOutcome: effectiveness.finalOutcome,
+            actualAmount:
+              typeof effectiveness.actualAmountBrl === "number"
+                ? String(effectiveness.actualAmountBrl)
+                : "",
+          });
+        }
         setIsLoading(false);
       })
       .catch((error) => {
@@ -188,6 +239,15 @@ export function ResultadoPage() {
     [result],
   );
   const isReadOnly = result?.resultStatus !== "pending";
+  const canShowEffectivenessSection = result?.resultStatus === "approved";
+  const requiresActualAmount =
+    effectivenessForm.finalOutcome === "agreement" ||
+    effectivenessForm.finalOutcome === "judgment";
+  const parsedActualAmount = parseCurrencyInput(effectivenessForm.actualAmount);
+  const canSaveEffectiveness =
+    !isEffectivenessLocked &&
+    effectivenessForm.finalOutcome !== "" &&
+    (!requiresActualAmount || parsedActualAmount !== null);
 
   async function handleConfirmFeedback() {
     if (!result || !allTopicsDecided || isReadOnly) {
@@ -224,6 +284,33 @@ export function ResultadoPage() {
       setErrorMessage(getErrorMessage(error));
     } finally {
       setIsSubmittingFeedback(false);
+    }
+  }
+
+  async function handleSaveEffectiveness() {
+    if (!result || !canSaveEffectiveness || isEffectivenessLocked) {
+      return;
+    }
+
+    setIsSavingEffectiveness(true);
+    setEffectivenessMessage("");
+    setEffectivenessError("");
+
+    try {
+      await saveCaseEffectiveness(result.caseId, {
+        analysisId: result.analysisId,
+        finalOutcome: effectivenessForm.finalOutcome as CaseEffectivenessOutcome,
+        actualAmountBrl: requiresActualAmount ? parsedActualAmount : null,
+      });
+
+      setIsEffectivenessLocked(true);
+      setEffectivenessMessage(
+        "Monitoramento de efetividade salvo com sucesso. Esse registro não pode ser alterado.",
+      );
+    } catch (error) {
+      setEffectivenessError(getErrorMessage(error));
+    } finally {
+      setIsSavingEffectiveness(false);
     }
   }
 
@@ -421,6 +508,106 @@ export function ResultadoPage() {
             <p className="mt-3 text-sm text-red-600">{errorMessage}</p>
           ) : null}
         </div>
+
+        {canShowEffectivenessSection ? (
+          <div className="page-card p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  MONITORAMENTO DE EFETIVIDADE
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Registre o desfecho real do caso para acompanhamento futuro da
+                  efetividade da recomendação.
+                </p>
+              </div>
+              <CircleDollarSign className="h-5 w-5 text-brand-navy" />
+            </div>
+
+            <div className="mt-6 space-y-5">
+              <div className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">
+                  Resultado final do caso
+                </span>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    { value: "agreement", label: "Acordo" },
+                    { value: "judgment", label: "Processo" },
+                    { value: "extinct", label: "Extinto" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      disabled={isEffectivenessLocked}
+                      className={[
+                        "min-h-11 rounded-[8px] border px-4 text-sm font-medium transition",
+                        effectivenessForm.finalOutcome === option.value
+                          ? "border-brand-navy bg-brand-navy text-white"
+                          : "border-border-soft bg-white text-slate-700 hover:border-brand-navy/30 hover:bg-mist",
+                        isEffectivenessLocked ? "cursor-not-allowed opacity-70" : "",
+                      ].join(" ")}
+                      onClick={() =>
+                        setEffectivenessForm((current) => ({
+                          ...current,
+                          finalOutcome: option.value as CaseEffectivenessOutcome,
+                          actualAmount:
+                            option.value === "extinct" ? "" : current.actualAmount,
+                        }))
+                      }
+                      type="button"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {requiresActualAmount ? (
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    {effectivenessForm.finalOutcome === "agreement"
+                      ? "Valor real do acordo"
+                      : "Valor real da condenação/indenização"}
+                  </span>
+                  <Input
+                    disabled={isEffectivenessLocked}
+                    inputMode="decimal"
+                    onChange={(event) =>
+                      setEffectivenessForm((current) => ({
+                        ...current,
+                        actualAmount: event.target.value,
+                      }))
+                    }
+                    placeholder="0,00"
+                    value={effectivenessForm.actualAmount}
+                  />
+                </label>
+              ) : null}
+            </div>
+
+            {isEffectivenessLocked ? null : (
+              <Button
+                className="mt-6"
+                disabled={!canSaveEffectiveness}
+                isLoading={isSavingEffectiveness}
+                onClick={handleSaveEffectiveness}
+                size="lg"
+                variant="secondary"
+              >
+                Salvar Monitoramento
+              </Button>
+            )}
+
+            {effectivenessMessage ? (
+              <p className="mt-3 text-sm text-emerald-700">
+                {effectivenessMessage}
+              </p>
+            ) : null}
+
+            {effectivenessError ? (
+              <p className="mt-3 text-sm text-red-600">{effectivenessError}</p>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <aside className="space-y-6">

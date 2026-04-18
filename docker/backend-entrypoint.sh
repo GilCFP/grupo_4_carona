@@ -7,7 +7,7 @@ FORCE_RESET="${DB_FORCE_RESET:-false}"
 
 find_seed_file() {
   suffix="$1"
-  find "$APP_DIR" -maxdepth 1 -type f -name "*$suffix" | head -n 1
+  find "$APP_DIR/data/exemplos" "$APP_DIR" -maxdepth 1 -type f -name "*$suffix" 2>/dev/null | head -n 1
 }
 
 SUBSIDIES_CSV_PATH="${SUBSIDIES_CSV_PATH:-$(find_seed_file "disponibilizados.csv")}"
@@ -32,12 +32,9 @@ if [ ! -f "$DB_FILE" ]; then
   echo "Executando seed com:"
   echo "  Subsídios: $SUBSIDIES_CSV_PATH"
   echo "  Resultados: $OUTCOMES_CSV_PATH"
-  node src/database/importCsvs.js "$SUBSIDIES_CSV_PATH" "$OUTCOMES_CSV_PATH"
+  node scripts/database/importCsvs.js "$SUBSIDIES_CSV_PATH" "$OUTCOMES_CSV_PATH"
 else
   echo "Banco existente encontrado em $DB_FILE. Pulando inicialização."
 fi
 
-echo "Garantindo policy estática publicada..."
-npm run new:policy:ensure
-
-exec npm run new:api:start
+exec npm run backend:api:start

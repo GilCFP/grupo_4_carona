@@ -166,6 +166,7 @@ model Case {
   analyses           CaseAnalysis[]
   lawyerActions      LawyerAction[]
   feedbacks          CaseFeedback[]
+  effectiveness      CaseEffectiveness?
   agentRuns          AgentRun[]
 
   @@index([externalCaseNumber])
@@ -229,6 +230,7 @@ model CaseAnalysis {
   policy              Policy          @relation(fields: [policyVersion], references: [version], onDelete: Restrict)
   lawyerActions       LawyerAction[]
   feedbacks           CaseFeedback[]
+  effectivenessEntries CaseEffectiveness[]
   feedbackEvents      FeedbackEvent[]
 
   @@index([caseId, createdAt])
@@ -252,6 +254,22 @@ model CaseFeedback {
   @@index([analysisId, createdAt])
   @@index([approvalStatus, aiRecommendation])
   @@map("case_feedbacks")
+}
+
+model CaseEffectiveness {
+  id              String       @id @default(cuid())
+  caseId          String       @unique @map("case_id")
+  analysisId      String       @map("analysis_id")
+  finalOutcome    String       @map("final_outcome")
+  actualAmountBrl Float?       @map("actual_amount_brl")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  case            Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  analysis        CaseAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId])
+  @@index([finalOutcome])
+  @@map("case_effectiveness")
 }
 
 model LawyerAction {

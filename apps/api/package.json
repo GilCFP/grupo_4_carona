@@ -1,8 +1,0 @@
-{
-  "name": "@grupo4/api",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "@grupo4/shared": "file:../../packages/shared"
-  }
-}

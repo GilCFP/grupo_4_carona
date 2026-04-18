@@ -2,6 +2,8 @@ import { API_BASE_URL } from "@/config/env";
 import type {
   AiTopic,
   CaseCategory,
+  CaseEffectivenessOutcome,
+  CaseEffectivenessRecord,
   CaseMetadata,
   CaseResult,
   PriorityLevel,
@@ -97,6 +99,12 @@ export interface SubmitCaseFeedbackPayload {
   analysisId?: string;
   feedbackText: string;
   approvalStatus: "approved" | "rejected";
+}
+
+export interface SaveCaseEffectivenessPayload {
+  analysisId?: string;
+  finalOutcome: CaseEffectivenessOutcome;
+  actualAmountBrl?: number | null;
 }
 
 class ApiError extends Error {
@@ -407,6 +415,38 @@ export async function submitCaseFeedback(
 ): Promise<void> {
   await requestJson(
     `/api/case-feedback/${caseId}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function getCaseEffectiveness(
+  caseId: string,
+): Promise<CaseEffectivenessRecord | null> {
+  try {
+    return await requestJson<CaseEffectivenessRecord>(
+      `/api/case-effectiveness/${caseId}`,
+    );
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+export async function saveCaseEffectiveness(
+  caseId: string,
+  payload: SaveCaseEffectivenessPayload,
+): Promise<CaseEffectivenessRecord> {
+  return requestJson<CaseEffectivenessRecord>(
+    `/api/case-effectiveness/${caseId}`,
     {
       method: "POST",
       headers: {

@@ -12,6 +12,7 @@ export type CaseComplexity = "Baixa" | "Média" | "Alta";
 
 export type VerdictRecommendation = "Acordo" | "Defesa" | "Revisão";
 export type ResultStatus = "pending" | "approved" | "rejected";
+export type CaseEffectivenessOutcome = "agreement" | "judgment" | "extinct";
 
 export interface AiTopic {
   id: string;
@@ -51,4 +52,14 @@ export interface CaseResult {
   verdict: CaseVerdict;
   topics: AiTopic[];
   generatedAt: string;
+}
+
+export interface CaseEffectivenessRecord {
+  id: string;
+  caseId: string;
+  analysisId: string;
+  finalOutcome: CaseEffectivenessOutcome;
+  actualAmountBrl: number | null;
+  createdAt: string;
+  updatedAt: string;
 }

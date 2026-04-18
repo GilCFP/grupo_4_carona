@@ -1,0 +1,23 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@grupo4/shared": [
+        "packages/shared/index.ts"
+      ],
+      "@grupo4/shared/*": [
+        "packages/shared/*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts"
+  ],
+  "exclude": [
+    "../node_modules",
+    "../dist",
+    "../data"
+  ]
+}
